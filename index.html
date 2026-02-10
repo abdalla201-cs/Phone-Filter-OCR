@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone Number Processor</title>
+    <!-- Site Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📞</text></svg>">
+    <!-- Tesseract.js for OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <style>
+        /* CSS Variables for Dark Theme */
+        :root {
+            --bg-dark: #121212;
+            --bg-card: #1e1e1e;
+            --bg-input: #2a2a2a;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b0b0b0;
+            --accent-color: #0d6efd;
+            --accent-hover: #0b5ed7;
+            --border-color: #3a3a3a;
+            --success-color: #198754;
+            --error-color: #dc3545;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        /* General Body and Font Styling */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 24px;
+            background-color: var(--bg-dark);
+            color: var(--text-secondary);
+            box-sizing: border-box;
+        }
+
+        .container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Header Styling */
+        header {
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        header h1 {
+            color: var(--text-primary);
+            margin: 0;
+            font-size: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        header h1::before {
+            content: '📞';
+            font-size: 1.8rem;
+        }
+
+        header p {
+            margin-top: 4px;
+            font-size: 1rem;
+            opacity: 0.7;
+        }
+
+        /* Top Panel for Inputs and Stats */
+        .top-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr 280px;
+            gap: 20px;
+            align-items: stretch; 
+        }
+
+        .stats-and-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        @media (max-width: 1024px) {
+            .top-panel {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* General Card Styling */
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card h3 {
+            position: relative;
+            margin-top: 0;
+            color: var(--accent-color);
+            font-size: 1.15rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+            flex-shrink: 0;
+        }
+
+        /* Stats Section Styling */
+        .stats-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: auto;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-input);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+        .stat-item .value {
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
+        #clear-session-btn {
+            background-color: var(--error-color);
+            color: white;
+            transition: background-color 0.3s ease;
+            width: 100%;
+            margin-top: 16px;
+        }
+        #clear-session-btn:hover { background-color: #c73e3e; }
+        
+        #drop-zone {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 150px;
+        }
+        #drop-zone.drag-over { background-color: var(--bg-input); border-color: var(--accent-color); }
+        #drop-zone p { margin: 0; pointer-events: none; }
+        #file-input { display: none; }
+
+        .input-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            background-color: var(--bg-input);
+            border-radius: 8px;
+            overflow: hidden;
+            height: 8px;
+            margin-top: 16px;
+            display: none;
+        }
+        #progress-bar { width: 0%; height: 100%; background-color: var(--accent-color); transition: width 0.3s ease; }
+
+        #text-input {
+            width: 100%;
+            min-height: 150px;
+            background-color: var(--bg-input);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-secondary);
+            font-family: 'Courier New', Courier, monospace;
+            padding: 12px;
+            resize: vertical;
+            box-sizing: border-box;
+            flex-grow: 1;
+        }
+
+        #process-text-btn { margin-top: 16px; }
+
+        /* Button Styling */
+        button {
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            background-color: var(--accent-color);
+            color: #fff;
+            font-size: 0.95rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        button:hover { background-color: var(--accent-hover); transform: translateY(-1px); }
+        button.secondary { background-color: var(--bg-input); border: 1px solid var(--border-color); }
+        button.secondary:hover { background-color: var(--border-color); }
+
+        /* Results Section Styling */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .result-card { 
+            position: relative; 
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .result-content {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            background-color: var(--bg-input);
+            padding: 12px;
+            border-radius: 8px;
+            min-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            right: 0;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            background-color: var(--bg-input);
+        }
+        
+        .copy-btn:hover {
+            transform: translateY(-50%);
+            background-color: var(--border-color);
+        }
+
+        /* Specific styling for cleaned numbers list */
+        .contact-name { font-weight: bold; color: var(--text-primary); margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 8px;}
+        .contact-name:first-child { margin-top: 0; border-top: none; padding-top: 0; }
+        
+        .contact-details { 
+            color: var(--text-secondary); 
+            opacity: 0.8; 
+            margin-bottom: 4px; 
+            font-size: 0.85rem;
+            padding-left: 0;
+        }
+        .contact-details div { padding: 1px 0; }
+
+        .contact-numbers { padding-left: 0; margin: 4px 0; }
+        .contact-numbers div { padding: 1px 0; color: var(--accent-color); }
+
+
+        .result-content ul { list-style-type: none; padding: 0; margin: 0; }
+        .result-content li { padding: 2px 0; }
+
+        /* Notification Styling */
+        #notification {
+            position: fixed;
+            top: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: var(--success-color);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: top 0.5s ease-in-out;
+            z-index: 1000;
+        }
+        #notification.show { top: 20px; }
+        #notification.error { background-color: var(--error-color); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Phone Number Processor</h1>
+            <p>Extract, clean, and group US phone numbers from text or images.</p>
+        </header>
+
+        <section class="top-panel">
+            <!-- Image Input Card -->
+            <div class="card">
+                <h3>🖼️ A) Image Upload & OCR</h3>
+                <div id="drop-zone">
+                    <p>Drag & drop images here</p>
+                    <input type="file" id="file-input" multiple accept=".png,.jpg,.jpeg,.pdf">
+                </div>
+                <div class="input-buttons">
+                    <button id="browse-btn" class="secondary">📁 Choose Files</button>
+                    <button id="paste-btn" class="secondary">📋 Paste Image</button>
+                </div>
+                <div class="progress-bar-container" id="progress-container">
+                     <div id="progress-bar"></div>
+                </div>
+                <p id="ocr-status" style="text-align:center; margin-top: 8px; font-size: 0.9rem;"></p>
+            </div>
+
+            <!-- Text Input Card -->
+            <div class="card">
+                <h3>✍️ B) Text Input</h3>
+                <textarea id="text-input" placeholder="Paste text containing names, addresses, emails and phone numbers here..."></textarea>
+                <button id="process-text-btn">⚡ Process Text</button>
+            </div>
+
+            <!-- Stats and Controls Column -->
+            <div class="card">
+                 <h3>📊 Stats & Controls</h3>
+                <div class="stats-grid">
+                    <div class="stat-item"><span>Total Processed:</span> <span id="stats-total" class="value">0</span></div>
+                    <div class="stat-item"><span>Unique Numbers:</span> <span id="stats-unique" class="value">0</span></div>
+                    <div class="stat-item"><span>Duplicate Instances:</span> <span id="stats-duplicates" class="value">0</span></div>
+                </div>
+                <button id="clear-session-btn">🗑️ Clear Session</button>
+            </div>
+        </section>
+        
+        <section class="results-grid">
+            <div class="card result-card">
+                <h3>📋 Cleaned Numbers (by Name)<button class="copy-btn" data-target="cleaned-numbers-list">Copy</button></h3>
+                <div class="result-content" id="cleaned-numbers-list"></div>
+            </div>
+            <div class="card result-card">
+                <h3>🇺🇸 American Format<button class="copy-btn" data-target="american-format-list">Copy</button></h3>
+                <div class="result-content" id="american-format-list">
+                    <ul></ul>
+                </div>
+            </div>
+            <div class="card result-card">
+                <h3>🔄 Duplicate Numbers<button class="copy-btn" data-target="duplicate-numbers-list">Copy</button></h3>
+                <div class="result-content" id="duplicate-numbers-list">
+                    <ul></ul>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Notification element -->
+    <div id="notification"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Element References ---
+            const textInput = document.getElementById('text-input');
+            const processTextBtn = document.getElementById('process-text-btn');
+            const clearSessionBtn = document.getElementById('clear-session-btn');
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const browseBtn = document.getElementById('browse-btn');
+            const pasteBtn = document.getElementById('paste-btn');
+            const progressBar = document.getElementById('progress-bar');
+            const progressContainer = document.getElementById('progress-container');
+            const ocrStatus = document.getElementById('ocr-status');
+            const notification = document.getElementById('notification');
+            const copyBtns = document.querySelectorAll('.copy-btn');
+
+            // --- Application State ---
+            // contacts structure: { name: string, details: Array<string>, numbers: Array<string> }
+            let contacts = []; 
+            let allCleanedNumbersList = []; 
+
+            // --- Phone Number Processing Logic ---
+            const phoneRegex = new RegExp([
+                /\b\d{10}\b/.source,
+                /\(\d{3}\)\s*\d{3}[-.\s]?\d{4}/.source,
+                /\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/.source,
+                /\+?1[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.source
+            ].join('|'), 'g');
+
+            const extractNumbersFromLine = (line) => line.match(phoneRegex) || [];
+
+            const cleanPhoneNumber = (rawNumber) => {
+                let cleaned = rawNumber.replace(/[^\d+]/g, '');
+                if (cleaned.startsWith('+1')) {
+                    cleaned = cleaned.substring(2);
+                } else if (cleaned.startsWith('1') && cleaned.length === 11) {
+                    cleaned = cleaned.substring(1);
+                }
+                return cleaned.length === 10 ? cleaned : null;
+            };
+
+            const formatCleaned = (number) => `(${number.substring(0, 3)}) ${number.substring(3, 6)}-${number.substring(6, 10)}`;
+            const formatAmerican = (number) => `+1 ${formatCleaned(number)}`;
+
+            // --- Image Pre-processing for better OCR ---
+            const preprocessImage = (file) => {
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Scale up for better recognition of small text
+                        const scaleFactor = 2; 
+                        canvas.width = img.width * scaleFactor;
+                        canvas.height = img.height * scaleFactor;
+                        
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        
+                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const data = imageData.data;
+                        
+                        // Analyze brightness to detect dark mode
+                        let totalBrightness = 0;
+                        for (let i = 0; i < data.length; i += 4) {
+                            totalBrightness += (data[i] + data[i+1] + data[i+2]) / 3;
+                        }
+                        const avgBrightness = totalBrightness / (data.length / 4);
+                        const isDarkMode = avgBrightness < 128; 
+
+                        for (let i = 0; i < data.length; i += 4) {
+                            let r = data[i];
+                            let g = data[i + 1];
+                            let b = data[i + 2];
+
+                            // Invert if dark mode detected (make it black text on white bg)
+                            if (isDarkMode) {
+                                r = 255 - r;
+                                g = 255 - g;
+                                b = 255 - b;
+                            }
+
+                            // Grayscale
+                            let gray = 0.21 * r + 0.72 * g + 0.07 * b;
+
+                            // Increase Contrast
+                            const contrast = 1.2; 
+                            const intercept = 128 * (1 - contrast);
+                            gray = gray * contrast + intercept;
+                            
+                            // Clamping
+                            gray = gray > 255 ? 255 : (gray < 0 ? 0 : gray);
+
+                            data[i] = data[i + 1] = data[i + 2] = gray;
+                        }
+                        
+                        ctx.putImageData(imageData, 0, 0);
+                        
+                        // Return blob
+                        canvas.toBlob((blob) => {
+                            resolve(blob);
+                        }, file.type);
+                    };
+                    img.onerror = reject;
+                    img.src = URL.createObjectURL(file);
+                });
+            };
+
+            // --- Helper to identify VALID detail lines and filter garbage ---
+            const isDetailLine = (line) => {
+                // IMPORTANT: Always keep lines with emails!
+                if (line.includes('@')) return true;
+
+                const lowerLine = line.toLowerCase();
+                
+                // 1. STRONG NOISE FILTER: If the line CONTAINS these words, it is garbage.
+                const strongNoise = [
+                    'phone record', 'phone type', 'sources', 'phone #(s)', 
+                    'wrong num', 'no good', 'bad number', 'disconnected', 
+                    'not associated', 'wrong number', 'household listing',
+                    'new movers', 'experian', 'transunion', 'email address'
+                ];
+                if (strongNoise.some(noise => lowerLine.includes(noise))) return false;
+
+                // 2. PARTIAL PHONE NUMBER FILTER
+                if (/\d{3}-\d{4}/.test(line) || /\(\d{3}\)/.test(line)) return false;
+
+                // 3. START NOISE FILTER
+                const startNoise = [
+                    'residence', 'business', 'wireless', 'land line', 'voip', 
+                    'mobile', 'gateway', 'voice line'
+                ];
+                if (startNoise.some(noise => lowerLine.startsWith(noise))) return false;
+
+                return true;
+            };
+
+            // --- PARSING LOGIC ---
+            const processAndAccumulate = (text, source = 'text') => {
+                const lines = text.split('\n');
+                
+                const contactsMap = new Map();
+                // Initialize map with existing data to prevent duplicates
+                contacts.forEach(c => contactsMap.set(c.name, { details: [...c.details], numbers: [...c.numbers] }));
+
+                // Step 1: Identify all lines that are definitely names
+                const nameCandidates = [];
+                lines.forEach((line, index) => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine === '') return;
+
+                    const hasPhoneNumber = extractNumbersFromLine(trimmedLine).length > 0;
+                    if (hasPhoneNumber) return; 
+
+                    const hasDigits = /\d/.test(trimmedLine);
+                    if (hasDigits) return; 
+
+                    // --- NEW RULE: Emails are NOT names ---
+                    if (trimmedLine.includes('@')) return; 
+
+                    const lowerLine = trimmedLine.toLowerCase();
+                    const isAKA = lowerLine.includes(' aka ') || lowerLine.startsWith('aka ') || lowerLine.includes(', aka');
+                    
+                    const noiseWords = ['phone', 'source', 'voicemail', 'email address'];
+                    
+                    if (!isAKA && noiseWords.some(word => lowerLine.includes(word))) return;
+
+                    const wordCount = trimmedLine.split(/\s+/).length;
+                    if (wordCount > 10) return;
+
+                    // --- Lookahead Heuristic (New) ---
+                    if (index + 1 < lines.length) {
+                        const nextLine = lines[index + 1].toLowerCase();
+                        if (nextLine.includes('email') || nextLine.includes('@')) {
+                            // High confidence this is a name header
+                            nameCandidates.push({ name: trimmedLine, index: index });
+                            return;
+                        }
+                    }
+
+                    nameCandidates.push({ name: trimmedLine, index: index });
+                });
+
+                // Step 2: Process numbers appearing before the first valid name
+                const defaultGroupName = source === 'image' ? "Extracted from image" : "Unknown";
+                const firstCandidateIndex = nameCandidates.length > 0 ? nameCandidates[0].index : lines.length;
+                
+                if (!contactsMap.has(defaultGroupName)) {
+                    contactsMap.set(defaultGroupName, { details: [], numbers: [] });
+                }
+                const unknownEntry = contactsMap.get(defaultGroupName);
+
+                for (let i = 0; i < firstCandidateIndex; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+
+                    const rawNumbers = extractNumbersFromLine(line);
+                    if (rawNumbers.length > 0) {
+                        rawNumbers.forEach(raw => {
+                            const cleaned = cleanPhoneNumber(raw);
+                            if (cleaned) {
+                                allCleanedNumbersList.push(cleaned);
+                                if (!unknownEntry.numbers.includes(cleaned)) {
+                                    unknownEntry.numbers.push(cleaned);
+                                }
+                            }
+                        });
+                    } else {
+                        // FIX: Capture orphans emails/details in Step 2
+                        if (isDetailLine(line)) {
+                            if (!unknownEntry.details.includes(line)) {
+                                unknownEntry.details.push(line);
+                            }
+                        }
+                    }
+                }
+
+                // Step 3: Process numbers and details for each named contact block
+                nameCandidates.forEach((candidate, i) => {
+                    const currentName = candidate.name;
+                    const startIndex = candidate.index + 1;
+                    const endIndex = (i + 1 < nameCandidates.length) ? nameCandidates[i + 1].index : lines.length;
+
+                    if (!contactsMap.has(currentName)) {
+                        contactsMap.set(currentName, { details: [], numbers: [] });
+                    }
+                    const contactEntry = contactsMap.get(currentName);
+
+                    for (let j = startIndex; j < endIndex; j++) {
+                        const line = lines[j].trim();
+                        if (!line) continue;
+
+                        const rawNumbers = extractNumbersFromLine(line);
+                        
+                        if (rawNumbers.length > 0) {
+                            // Line contains numbers
+                            rawNumbers.forEach(raw => {
+                                const cleaned = cleanPhoneNumber(raw);
+                                if (cleaned) {
+                                    allCleanedNumbersList.push(cleaned);
+                                    if (!contactEntry.numbers.includes(cleaned)) {
+                                        contactEntry.numbers.push(cleaned);
+                                    }
+                                }
+                            });
+                        } else {
+                            // Line contains NO numbers. Check if it's a valid Detail (Address/Email).
+                            if (isDetailLine(line)) {
+                                if (!contactEntry.details.includes(line)) {
+                                    contactEntry.details.push(line);
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Step 4: Rebuild main array - FILTER: Must have at least 1 number OR 1 email to be included.
+                contacts = [];
+                for (const [name, data] of contactsMap.entries()) {
+                    const hasNumbers = data.numbers.length > 0;
+                    const hasEmail = data.details.some(d => d.includes('@'));
+
+                    if (hasNumbers || hasEmail) {
+                         contacts.push({ name, details: data.details, numbers: data.numbers });
+                    }
+                }
+
+                updateUI();
+                showNotification('Data processed successfully!');
+            };
+
+
+            // --- UI Update Logic ---
+            const updateUI = () => {
+                updateStats();
+                renderCleanedNumbers();
+                renderAmericanFormatNumbers();
+                renderDuplicateNumbers();
+            };
+
+            const updateStats = () => {
+                const totalCount = allCleanedNumbersList.length;
+                const uniqueCount = new Set(allCleanedNumbersList).size;
+                document.getElementById('stats-total').textContent = `Total: ${totalCount}`;
+                document.getElementById('stats-unique').textContent = `Unique: ${uniqueCount}`;
+                document.getElementById('stats-duplicates').textContent = `Duplicates: ${totalCount - uniqueCount}`;
+            };
+
+            const renderCleanedNumbers = () => {
+                const container = document.getElementById('cleaned-numbers-list');
+                container.innerHTML = '';
+                const unknownContact = contacts.find(c => c.name === 'Unknown');
+                const imageContact = contacts.find(c => c.name === 'Extracted from image');
+                const namedContacts = contacts.filter(c => c.name !== 'Unknown' && c.name !== 'Extracted from image');
+                
+                const displayContacts = [...namedContacts];
+                if (unknownContact && (unknownContact.numbers.length > 0 || unknownContact.details.length > 0)) {
+                    displayContacts.push(unknownContact);
+                }
+                if (imageContact && (imageContact.numbers.length > 0 || imageContact.details.length > 0)) {
+                    displayContacts.push(imageContact);
+                }
+                
+                displayContacts.forEach(contact => {
+                    const nameEl = document.createElement('div');
+                    nameEl.className = 'contact-name';
+                    nameEl.textContent = contact.name;
+                    container.appendChild(nameEl);
+
+                    // Render Details (Addresses, Emails)
+                    if (contact.details && contact.details.length > 0) {
+                        const detailsContainer = document.createElement('div');
+                        detailsContainer.className = 'contact-details';
+                        contact.details.forEach(detail => {
+                            const detailDiv = document.createElement('div');
+                            detailDiv.textContent = detail;
+                            detailsContainer.appendChild(detailDiv);
+                        });
+                        container.appendChild(detailsContainer);
+                    }
+
+                    // Render Numbers
+                    const numbersContainer = document.createElement('div');
+                    numbersContainer.className = 'contact-numbers';
+                    
+                    contact.numbers.forEach(num => {
+                        const numberDiv = document.createElement('div');
+                        numberDiv.textContent = formatCleaned(num);
+                        numbersContainer.appendChild(numberDiv);
+                    });
+                    container.appendChild(numbersContainer);
+                });
+            };
+
+            const renderAmericanFormatNumbers = () => {
+                const container = document.getElementById('american-format-list').querySelector('ul');
+                container.innerHTML = '';
+                
+                const uniqueNumbersInOrder = [];
+                const seenNumbers = new Set();
+                
+                const unknownContact = contacts.find(c => c.name === 'Unknown');
+                const imageContact = contacts.find(c => c.name === 'Extracted from image');
+                const namedContacts = contacts.filter(c => c.name !== 'Unknown' && c.name !== 'Extracted from image');
+                
+                const displayContacts = [...namedContacts];
+                if (unknownContact) displayContacts.push(unknownContact);
+                if (imageContact) displayContacts.push(imageContact);
+
+                displayContacts.forEach(contact => {
+                    if (contact && contact.numbers) {
+                        contact.numbers.forEach(num => {
+                            if (!seenNumbers.has(num)) {
+                                uniqueNumbersInOrder.push(num);
+                                seenNumbers.add(num);
+                            }
+                        });
+                    }
+                });
+
+                uniqueNumbersInOrder.forEach(num => {
+                    const li = document.createElement('li');
+                    li.textContent = formatAmerican(num);
+                    container.appendChild(li);
+                });
+            };
+
+            const renderDuplicateNumbers = () => {
+                const container = document.getElementById('duplicate-numbers-list').querySelector('ul');
+                container.innerHTML = '';
+                const counts = {};
+                allCleanedNumbersList.forEach(num => { counts[num] = (counts[num] || 0) + 1; });
+
+                Object.entries(counts)
+                    .filter(([, count]) => count > 1)
+                    .sort(([numA], [numB]) => numA.localeCompare(numB))
+                    .forEach(([num, count]) => {
+                        const li = document.createElement('li');
+                        li.textContent = `${formatCleaned(num)} (${count} times)`;
+                        container.appendChild(li);
+                    });
+            };
+
+            // --- Session & Notifications ---
+            const clearSession = () => {
+                contacts = [];
+                allCleanedNumbersList = [];
+                textInput.value = '';
+                updateUI();
+                showNotification('Session cleared successfully.');
+            };
+
+            let notificationTimeout;
+            const showNotification = (message, isError = false) => {
+                clearTimeout(notificationTimeout);
+                notification.textContent = message;
+                notification.className = isError ? 'error' : '';
+                notification.classList.add('show');
+                notificationTimeout = setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            };
+            
+            // --- File & OCR Handling ---
+            const handleFiles = async (files) => {
+                const validFiles = Array.from(files).filter(file => {
+                    const isValidType = ['image/png', 'image/jpeg', 'application/pdf'].includes(file.type);
+                    const isValidSize = file.size <= 10 * 1024 * 1024; 
+                    return isValidType && isValidSize;
+                });
+
+                if (validFiles.length === 0) return;
+                
+                progressContainer.style.display = 'block';
+                ocrStatus.textContent = `Processing ${validFiles.length} file(s)...`;
+
+                let combinedText = "";
+                for (const file of validFiles) {
+                    try {
+                        const processedBlob = await preprocessImage(file);
+                        const { data: { text } } = await Tesseract.recognize(processedBlob, 'eng', {
+                            logger: m => {
+                                if (m.status === 'recognizing text') {
+                                    const progress = Math.round(m.progress * 100);
+                                    progressBar.style.width = `${progress}%`;
+                                    ocrStatus.textContent = `Recognizing text in ${file.name}... ${progress}%`;
+                                 }
+                            }
+                        });
+                        combinedText += text + '\n';
+                    } catch (error) {
+                        console.error('OCR Error:', error);
+                        showNotification(`Failed to extract text from ${file.name}.`, true);
+                    }
+                }
+                
+                processAndAccumulate(combinedText, 'image');
+                progressBar.style.width = '0%';
+                progressContainer.style.display = 'none';
+                ocrStatus.textContent = '';
+            };
+
+            // --- Event Listeners ---
+            processTextBtn.addEventListener('click', () => {
+                const text = textInput.value;
+                if (!text.trim()) {
+                    showNotification('Text input is empty.', true);
+                    return;
+                }
+                processAndAccumulate(text, 'text');
+            });
+
+            clearSessionBtn.addEventListener('click', clearSession);
+            browseBtn.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+            dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
+            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+            dropZone.addEventListener('click', () => fileInput.click());
+
+            pasteBtn.addEventListener('click', () => showNotification('Press Ctrl+V to paste an image directly.'));
+            
+            document.addEventListener('paste', e => {
+                if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+                if (e.clipboardData && e.clipboardData.files.length > 0) {
+                    handleFiles(e.clipboardData.files);
+                    e.preventDefault();
+                }
+            });
+            
+            copyBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetId = btn.dataset.target;
+                    const contentElement = document.getElementById(targetId);
+                    
+                    if (!contentElement.textContent.trim()) { 
+                        showNotification('Nothing to copy.', true); 
+                        return; 
+                    }
+
+                    const textToCopy = contentElement.innerText;
+                    
+                    const textArea = document.createElement("textarea");
+                    textArea.value = textToCopy.trim();
+                    textArea.style.position = "fixed"; textArea.style.top = "-9999px"; textArea.style.left = "-9999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy') ? showNotification('Copied to clipboard!') : showNotification('Copy failed.', true);
+                    } catch (err) {
+                        console.error('Copy failed:', err);
+                    }
+                    document.body.removeChild(textArea);
+                });
+            });
+
+            // Initial setup
+            updateUI();
+        });
+    </script>
+</body>
+</html>
