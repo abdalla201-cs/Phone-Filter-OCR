@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phone Number Processor</title>
+    <title>Phone Number Processor Pro</title>
     <!-- Site Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📞</text></svg>">
     <!-- Tesseract.js for OCR -->
@@ -24,7 +24,6 @@
             --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
         }
 
-        /* General Body and Font Styling */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
@@ -43,867 +42,322 @@
             gap: 20px;
         }
 
-        /* Header Styling */
-        header {
-            text-align: center;
-            flex-shrink: 0;
-        }
+        header { text-align: center; margin-bottom: 10px; }
+        header h1 { color: var(--text-primary); margin: 0; font-size: 2rem; display: flex; align-items: center; justify-content: center; gap: 12px; }
+        header h1::before { content: '📞'; font-size: 1.8rem; }
+        header p { margin-top: 4px; opacity: 0.7; }
 
-        header h1 {
-            color: var(--text-primary);
-            margin: 0;
-            font-size: 2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-        }
-        
-        header h1::before {
-            content: '📞';
-            font-size: 1.8rem;
-        }
+        .top-panel { display: grid; grid-template-columns: 1fr 1fr 280px; gap: 20px; }
+        @media (max-width: 1024px) { .top-panel { grid-template-columns: 1fr; } }
 
-        header p {
-            margin-top: 4px;
-            font-size: 1rem;
-            opacity: 0.7;
-        }
+        .card { background-color: var(--bg-card); border-radius: 12px; padding: 20px; border: 1px solid var(--border-color); box-shadow: var(--shadow); display: flex; flex-direction: column; }
+        .card h3 { color: var(--accent-color); font-size: 1.15rem; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px; }
 
-        /* Top Panel for Inputs and Stats */
-        .top-panel {
-            display: grid;
-            grid-template-columns: 1fr 1fr 280px;
-            gap: 20px;
-            align-items: stretch; 
-        }
+        .stats-grid { display: flex; flex-direction: column; gap: 12px; }
+        .stat-item { display: flex; justify-content: space-between; background-color: var(--bg-input); padding: 8px 12px; border-radius: 6px; }
+        .stat-item .value { font-weight: bold; color: var(--text-primary); }
 
-        .stats-and-controls {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        @media (max-width: 1024px) {
-            .top-panel {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* General Card Styling */
-        .card {
-            background-color: var(--bg-card);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid var(--border-color);
-            box-shadow: var(--shadow);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .card h3 {
-            position: relative;
-            margin-top: 0;
-            color: var(--accent-color);
-            font-size: 1.15rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 12px;
-            margin-bottom: 16px;
-            flex-shrink: 0;
-        }
-
-        /* Stats Section Styling */
-        .stats-grid {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-bottom: auto;
-        }
-
-        .stat-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background-color: var(--bg-input);
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.95rem;
-            font-weight: 500;
-        }
-        .stat-item .value {
-            font-weight: bold;
-            color: var(--text-primary);
-        }
-
-        #clear-session-btn {
-            background-color: var(--error-color);
-            color: white;
-            transition: background-color 0.3s ease;
-            width: 100%;
-            margin-top: 16px;
-        }
-        #clear-session-btn:hover { background-color: #c73e3e; }
-        
-        #drop-zone {
-            border: 2px dashed var(--border-color);
-            border-radius: 8px;
-            padding: 24px;
-            text-align: center;
-            cursor: pointer;
-            transition: background-color 0.3s ease, border-color 0.3s ease;
-            flex-grow: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 150px;
-        }
+        #drop-zone { border: 2px dashed var(--border-color); border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; transition: 0.3s; flex-grow: 1; display: flex; align-items: center; justify-content: center; }
         #drop-zone.drag-over { background-color: var(--bg-input); border-color: var(--accent-color); }
-        #drop-zone p { margin: 0; pointer-events: none; }
         #file-input { display: none; }
 
-        .input-buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 16px;
-        }
+        #text-input { width: 100%; min-height: 180px; background-color: var(--bg-input); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-secondary); padding: 12px; resize: vertical; box-sizing: border-box; font-family: monospace; }
 
-        .progress-bar-container {
-            width: 100%;
-            background-color: var(--bg-input);
-            border-radius: 8px;
-            overflow: hidden;
-            height: 8px;
-            margin-top: 16px;
-            display: none;
-        }
-        #progress-bar { width: 0%; height: 100%; background-color: var(--accent-color); transition: width 0.3s ease; }
-
-        #text-input {
-            width: 100%;
-            min-height: 150px;
-            background-color: var(--bg-input);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-secondary);
-            font-family: 'Courier New', Courier, monospace;
-            padding: 12px;
-            resize: vertical;
-            box-sizing: border-box;
-            flex-grow: 1;
-        }
-
-        #process-text-btn { margin-top: 16px; }
-
-        /* Button Styling */
-        button {
-            padding: 10px 16px;
-            border-radius: 8px;
-            border: none;
-            background-color: var(--accent-color);
-            color: #fff;
-            font-size: 0.95rem;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
+        button { padding: 12px 16px; border-radius: 8px; border: none; background-color: var(--accent-color); color: #fff; font-weight: bold; cursor: pointer; transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 10px; }
         button:hover { background-color: var(--accent-hover); transform: translateY(-1px); }
-        button.secondary { background-color: var(--bg-input); border: 1px solid var(--border-color); }
-        button.secondary:hover { background-color: var(--border-color); }
+        button.secondary { background-color: var(--bg-input); border: 1px solid var(--border-color); margin-top: 0; }
+        #clear-session-btn { background-color: var(--error-color); width: 100%; margin-top: 20px; }
 
-        /* Results Section Styling */
-        .results-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-
-        .result-card { 
-            position: relative; 
-            display: flex;
-            flex-direction: column;
-        }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-top: 10px; }
+        .result-content { font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; background-color: var(--bg-input); padding: 15px; border-radius: 8px; min-height: 250px; max-height: 600px; overflow-y: auto; }
         
-        .result-content {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.9rem;
-            background-color: var(--bg-input);
-            padding: 12px;
-            border-radius: 8px;
-            min-height: 200px;
-            overflow-y: auto;
-        }
-        
-        .copy-btn {
-            position: absolute;
-            top: 50%;
-            transform: translateY(-50%);
-            right: 0;
-            padding: 5px 10px;
-            font-size: 0.75rem;
-            background-color: var(--bg-input);
-        }
-        
-        .copy-btn:hover {
-            transform: translateY(-50%);
-            background-color: var(--border-color);
-        }
+        .copy-btn { float: right; padding: 4px 8px; font-size: 0.75rem; background-color: var(--border-color); margin-top: -5px; }
 
-        /* Specific styling for cleaned numbers list */
-        .contact-name { font-weight: bold; color: var(--text-primary); margin-top: 12px; border-top: 1px solid var(--border-color); padding-top: 8px;}
-        .contact-name:first-child { margin-top: 0; border-top: none; padding-top: 0; }
-        
-        .contact-details { 
-            color: var(--text-secondary); 
-            opacity: 0.8; 
-            margin-bottom: 4px; 
-            font-size: 0.85rem;
-            padding-left: 0;
-        }
-        .contact-details div { padding: 1px 0; }
+        /* Contact UI */
+        .contact-block { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
+        .contact-name { font-weight: bold; color: #fff; font-size: 1.1rem; margin-bottom: 5px; text-transform: uppercase; }
+        .contact-detail { color: var(--text-secondary); opacity: 0.8; font-size: 0.85rem; margin-left: 5px; }
+        .contact-number { color: var(--accent-color); font-weight: 500; margin-top: 2px; }
 
-        .contact-numbers { padding-left: 0; margin: 4px 0; }
-        .contact-numbers div { padding: 1px 0; color: var(--accent-color); }
-
-
-        .result-content ul { list-style-type: none; padding: 0; margin: 0; }
-        .result-content li { padding: 2px 0; }
-
-        /* Notification Styling */
-        #notification {
-            position: fixed;
-            top: -100px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: var(--success-color);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            transition: top 0.5s ease-in-out;
-            z-index: 1000;
-        }
+        #notification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background-color: var(--success-color); color: white; padding: 12px 24px; border-radius: 8px; transition: 0.5s; z-index: 1000; }
         #notification.show { top: 20px; }
-        #notification.error { background-color: var(--error-color); }
+        
+        .progress-bar-container { width: 100%; background-color: var(--bg-input); border-radius: 8px; height: 8px; margin-top: 15px; display: none; overflow: hidden; }
+        #progress-bar { width: 0%; height: 100%; background-color: var(--accent-color); transition: width 0.3s ease; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <header>
-            <h1>Phone Number Processor</h1>
-            <p>Extract, clean, and group US phone numbers from text or images.</p>
+            <h1>Phone Number Processor Pro</h1>
+            <p>Smart extraction with global deduplication of phone numbers.</p>
         </header>
 
         <section class="top-panel">
-            <!-- Image Input Card -->
             <div class="card">
-                <h3>🖼️ A) Image Upload & OCR</h3>
-                <div id="drop-zone">
-                    <p>Drag & drop images here</p>
-                    <input type="file" id="file-input" multiple accept=".png,.jpg,.jpeg,.pdf">
-                </div>
-                <div class="input-buttons">
-                    <button id="browse-btn" class="secondary">📁 Choose Files</button>
-                    <button id="paste-btn" class="secondary">📋 Paste Image</button>
+                <h3>🖼️ OCR Image Upload</h3>
+                <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+                    <p>Drag images or click to upload</p>
+                    <input type="file" id="file-input" multiple accept="image/*">
                 </div>
                 <div class="progress-bar-container" id="progress-container">
                      <div id="progress-bar"></div>
                 </div>
-                <p id="ocr-status" style="text-align:center; margin-top: 8px; font-size: 0.9rem;"></p>
             </div>
 
-            <!-- Text Input Card -->
             <div class="card">
-                <h3>✍️ B) Text Input</h3>
-                <textarea id="text-input" placeholder="Paste text containing names, addresses, emails and phone numbers here..."></textarea>
-                <button id="process-text-btn">⚡ Process Text</button>
+                <h3>✍️ Text Input</h3>
+                <textarea id="text-input" placeholder="Paste data containing names, addresses, emails..."></textarea>
+                <button id="process-text-btn">⚡ Filter & Extract Data</button>
             </div>
 
-            <!-- Stats and Controls Column -->
             <div class="card">
-                 <h3>📊 Stats & Controls</h3>
+                 <h3>📊 Statistics</h3>
                 <div class="stats-grid">
-                    <div class="stat-item"><span>Total Processed:</span> <span id="stats-total" class="value">0</span></div>
+                    <div class="stat-item"><span>Total Instances:</span> <span id="stats-total" class="value">0</span></div>
                     <div class="stat-item"><span>Unique Numbers:</span> <span id="stats-unique" class="value">0</span></div>
-                    <div class="stat-item"><span>Duplicate Instances:</span> <span id="stats-duplicates" class="value">0</span></div>
                 </div>
                 <button id="clear-session-btn">🗑️ Clear Session</button>
             </div>
         </section>
         
         <section class="results-grid">
-            <div class="card result-card">
-                <h3>📋 Cleaned Numbers (by Name)<button class="copy-btn" data-target="cleaned-numbers-list">Copy</button></h3>
+            <div class="card">
+                <h3>📋 Results (by Name) <button class="copy-btn" data-target="cleaned-numbers-list">Copy</button></h3>
                 <div class="result-content" id="cleaned-numbers-list"></div>
             </div>
-            <div class="card result-card">
-                <h3>🇺🇸 American Format<button class="copy-btn" data-target="american-format-list">Copy</button></h3>
-                <div class="result-content" id="american-format-list">
-                    <ul></ul>
-                </div>
+            <div class="card">
+                <h3>🇺🇸 American Format <button class="copy-btn" data-target="american-format-list">Copy</button></h3>
+                <div class="result-content" id="american-format-list"></div>
             </div>
-            <div class="card result-card">
-                <h3>🔄 Duplicate Numbers<button class="copy-btn" data-target="duplicate-numbers-list">Copy</button></h3>
-                <div class="result-content" id="duplicate-numbers-list">
-                    <ul></ul>
-                </div>
+            <div class="card">
+                <h3>🔄 Duplicates Found <button class="copy-btn" data-target="duplicate-numbers-list">Copy</button></h3>
+                <div class="result-content" id="duplicate-numbers-list"></div>
             </div>
         </section>
     </div>
 
-    <!-- Notification element -->
     <div id="notification"></div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // --- DOM Element References ---
             const textInput = document.getElementById('text-input');
             const processTextBtn = document.getElementById('process-text-btn');
             const clearSessionBtn = document.getElementById('clear-session-btn');
-            const dropZone = document.getElementById('drop-zone');
             const fileInput = document.getElementById('file-input');
-            const browseBtn = document.getElementById('browse-btn');
-            const pasteBtn = document.getElementById('paste-btn');
             const progressBar = document.getElementById('progress-bar');
             const progressContainer = document.getElementById('progress-container');
-            const ocrStatus = document.getElementById('ocr-status');
             const notification = document.getElementById('notification');
-            const copyBtns = document.querySelectorAll('.copy-btn');
 
-            // --- Application State ---
-            // contacts structure: { name: string, details: Array<string>, numbers: Array<string> }
             let contacts = []; 
-            let allCleanedNumbersList = []; 
+            let globalInstances = []; 
+            let globalAssignedSet = new Set(); 
 
-            // --- Phone Number Processing Logic ---
-            const phoneRegex = new RegExp([
-                /\b\d{10}\b/.source,
-                /\(\d{3}\)\s*\d{3}[-.\s]?\d{4}/.source,
-                /\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/.source,
-                /\+?1[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.source
-            ].join('|'), 'g');
+            const phoneRegex = /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g;
 
-            const extractNumbersFromLine = (line) => line.match(phoneRegex) || [];
-
-            const cleanPhoneNumber = (rawNumber) => {
-                let cleaned = rawNumber.replace(/[^\d+]/g, '');
-                if (cleaned.startsWith('+1')) {
-                    cleaned = cleaned.substring(2);
-                } else if (cleaned.startsWith('1') && cleaned.length === 11) {
-                    cleaned = cleaned.substring(1);
-                }
+            // --- Utilities ---
+            const cleanPhoneNumber = (raw) => {
+                let cleaned = raw.replace(/[^\d]/g, '');
+                if (cleaned.length === 11 && cleaned.startsWith('1')) cleaned = cleaned.substring(1);
                 return cleaned.length === 10 ? cleaned : null;
             };
 
-            const formatCleaned = (number) => `(${number.substring(0, 3)}) ${number.substring(3, 6)}-${number.substring(6, 10)}`;
-            const formatAmerican = (number) => `+1 ${formatCleaned(number)}`;
+            const formatCleaned = (num) => `(${num.substring(0, 3)}) ${num.substring(3, 6)}-${num.substring(6, 10)}`;
+            const formatAmerican = (num) => `+1 ${formatCleaned(num)}`;
 
-            // --- Helper to clean Name string ---
-            const cleanName = (line) => {
-                // Remove (digits) pattern, e.g. "Name (5) - Owner" -> "Name - Owner"
-                return line.replace(/\s*\(\d+\)\s*/g, ' ').trim().replace(/\s{2,}/g, ' ');
+            const cleanName = (str) => {
+                return str.replace(/\s*\(\d+\)\s*/g, ' ')
+                          .replace(/deceased/gi, '')
+                          .replace(/email address:?/gi, '')
+                          .replace(/phone #\(s\):?/gi, '')
+                          .trim().replace(/\s{2,}/g, ' ');
             };
 
-            // --- Image Pre-processing for better OCR ---
-            const preprocessImage = (file) => {
-                return new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        const scaleFactor = 2; 
-                        canvas.width = img.width * scaleFactor;
-                        canvas.height = img.height * scaleFactor;
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const data = imageData.data;
-                        let totalBrightness = 0;
-                        for (let i = 0; i < data.length; i += 4) {
-                            totalBrightness += (data[i] + data[i+1] + data[i+2]) / 3;
-                        }
-                        const avgBrightness = totalBrightness / (data.length / 4);
-                        const isDarkMode = avgBrightness < 128; 
-                        for (let i = 0; i < data.length; i += 4) {
-                            let r = data[i];
-                            let g = data[i + 1];
-                            let b = data[i + 2];
-                            if (isDarkMode) { r = 255 - r; g = 255 - g; b = 255 - b; }
-                            let gray = 0.21 * r + 0.72 * g + 0.07 * b;
-                            const contrast = 1.2; 
-                            const intercept = 128 * (1 - contrast);
-                            gray = gray * contrast + intercept;
-                            gray = gray > 255 ? 255 : (gray < 0 ? 0 : gray);
-                            data[i] = data[i + 1] = data[i + 2] = gray;
-                        }
-                        ctx.putImageData(imageData, 0, 0);
-                        canvas.toBlob((blob) => { resolve(blob); }, file.type);
-                    };
-                    img.onerror = reject;
-                    img.src = URL.createObjectURL(file);
-                });
+            const isTechnicalGarbage = (str) => {
+                const lower = str.toLowerCase();
+                const keys = ['record', 'listing', 'sources', 'phone type', 'household', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias'];
+                return keys.some(k => lower.includes(k));
             };
 
-            // --- Helper to extract Emails ---
-            const extractEmails = (line) => {
-                const emailRegex = /[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g;
-                return line.match(emailRegex) || [];
-            };
-
-            // --- Helper to find Embedded Names ---
-            const findEmbeddedName = (line) => {
-                const nameRegex = /\b([A-Z][a-z]+|[A-Z]+),\s+([A-Z][a-z]+|[A-Z]+)(?:\s+[A-Z]\.?)?\b/g;
-                let match;
-                
-                const stateCodes = new Set(['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY']);
-                
-                const addressWords = ['Ave', 'St', 'Rd', 'Blvd', 'Dr', 'Ln', 'Ct', 'Pl'];
-
-                while ((match = nameRegex.exec(line)) !== null) {
-                    const potentialName = match[0];
-                    const secondPart = match[2];
-                    const firstPart = match[1];
-
-                    if (stateCodes.has(secondPart.toUpperCase())) continue;
-                    if (addressWords.includes(firstPart)) continue;
-
-                    return potentialName; 
-                }
-                return null;
-            };
-
-            // --- Helper to identify VALID detail lines and filter garbage ---
-            const isDetailLine = (line, isStrict = false) => {
-                if (line.includes('@')) return true; // Always keep emails
-
-                // If strict mode (Images), REJECT anything that isn't an email
-                if (isStrict) return false;
-
-                const lowerLine = line.toLowerCase();
-                const strongNoise = [
-                    'phone record', 'phone type', 'sources', 'phone #(s)', 
-                    'wrong num', 'no good', 'bad number', 'disconnected', 
-                    'not associated', 'wrong number', 'household listing',
-                    'new movers', 'experian', 'transunion', 'email address',
-                    'contact:', 'pastor', 'church', 'meets at', 
-                    'here\'s who', 'service listed', 'general contact', 
-                    'associate', 'renovation', 'presbyterian'
-                ];
-                if (strongNoise.some(noise => lowerLine.includes(noise))) return false;
-
-                if (/\d{3}-\d{4}/.test(line) || /\(\d{3}\)/.test(line)) return false;
-
-                const startNoise = [
-                    'residence', 'business', 'wireless', 'land line', 'voip', 
-                    'mobile', 'gateway', 'voice line'
-                ];
-                if (startNoise.some(noise => lowerLine.startsWith(noise))) return false;
-
-                // 4. ADDRESS & BUSINESS HEURISTIC
+            const isDetailLine = (line) => {
+                if (line.includes('@')) return true;
                 const hasDigits = /\d/.test(line);
-                const addressKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|way|terrace|pkwy|hwy|floor|fl|apt|suite|unit)\b/i;
-                const stateCodes = /\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b/;
-                const zipCode = /\b\d{5}\b/;
-                const businessKeywords = /\b(inc|llc|corp|co|ltd|group|solutions|services?|sign|erectors?|imports?)\b/i;
-
-                if (businessKeywords.test(line)) return true; // Accept Business names as details
-                if (hasDigits && (addressKeywords.test(line) || stateCodes.test(line) || zipCode.test(line))) {
-                    return true;
-                }
-
-                return false;
+                const addrKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|hls|hl|suite|apt|unit|floor|fl|ny|nj|ca|tx|fl)\b/i;
+                return hasDigits && addrKeywords.test(line);
             };
 
-            // --- PARSING LOGIC ---
-            const processAndAccumulate = (text, source = 'text') => {
-                const lines = text.split('\n');
-                
-                let tempContacts = [];
-                let currentEntry = null;
-                const defaultGroupName = source === 'image' ? "Extracted from image" : "Unknown";
-                const isImageMode = source === 'image';
-                
-                const getUnknownEntry = () => {
-                    let entry = tempContacts.find(c => c.name === defaultGroupName);
-                    if (!entry) {
-                        entry = { name: defaultGroupName, details: [], numbers: [] };
-                        tempContacts.push(entry);
-                    }
-                    return entry;
-                };
-
-                // Initialize strict global set with EXISTING numbers
-                const uniqueNumbersDisplayed = new Set();
-                contacts.forEach(c => {
-                    c.numbers.forEach(num => uniqueNumbersDisplayed.add(num));
-                });
+            // --- MAIN PARSER ---
+            const parseData = (text) => {
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                let currentContact = null;
 
                 for (let i = 0; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (!line) continue;
+                    const line = lines[i];
+                    const rawPhones = line.match(phoneRegex) || [];
+                    const emails = line.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
 
-                    const rawNumbers = extractNumbersFromLine(line);
-                    const rawEmails = extractEmails(line);
-                    const embeddedName = findEmbeddedName(line);
-                    
-                    // --- Logic Branching ---
+                    // 1. Identify Name Line
+                    let isName = false;
+                    const cleanLine = cleanName(line);
 
-                    // 1. Embedded Name Found
-                    if (embeddedName) {
-                        currentEntry = { name: cleanName(embeddedName), details: [], numbers: [] };
-                        tempContacts.push(currentEntry);
-                        
-                        rawNumbers.forEach(num => {
-                            const cleaned = cleanPhoneNumber(num);
-                            if (cleaned) {
-                                allCleanedNumbersList.push(cleaned);
-                                if (!uniqueNumbersDisplayed.has(cleaned)) {
-                                    if (!currentEntry.numbers.includes(cleaned)) {
-                                        currentEntry.numbers.push(cleaned);
-                                        uniqueNumbersDisplayed.add(cleaned);
-                                    }
+                    if (rawPhones.length === 0 && !line.includes('@')) {
+                        if (!isTechnicalGarbage(cleanLine) && cleanLine.length > 3) {
+                            if (i + 1 < lines.length) {
+                                const next = lines[i+1].toLowerCase();
+                                if (next.includes('@') || next.includes('email address') || next.match(phoneRegex)) {
+                                    isName = true;
                                 }
                             }
-                        });
-                        rawEmails.forEach(email => {
-                            if (!currentEntry.details.includes(email)) currentEntry.details.push(email);
-                        });
-                        continue; 
-                    }
-
-                    // 2. Clean Name Found (Whole line is name)
-                    let isCleanName = false;
-                    let finalName = "";
-                    
-                    if (rawNumbers.length === 0 && !line.includes('@')) {
-                        // CLEANING CHECK: Name line candidate
-                        let potentialName = cleanName(line);
-
-                        const hasDigits = /\d/.test(potentialName);
-                        const isAgeInfo = /\bage\s*:?\s*\d+/i.test(potentialName);
-                        
-                        // Check validity on CLEANED line
-                        if (!hasDigits || isAgeInfo) {
-                            const lowerLine = potentialName.toLowerCase();
-                            const isAKA = lowerLine.includes(' aka ') || lowerLine.startsWith('aka ') || lowerLine.includes(', aka');
-                            const noiseWords = ['phone', 'source', 'voicemail', 'email address', 'pastor', 'church'];
-                            
-                            // Comprehensive business keyword check
-                            const businessKeywords = /\b(inc|llc|corp|co|ltd|imports?|group|solutions)\b/i;
-                            
-                            if ((isAKA || !noiseWords.some(word => lowerLine.includes(word))) && !businessKeywords.test(potentialName)) {
-                                if (potentialName.split(/\s+/).length <= 10 && potentialName.length >= 3) {
-                                    if (!isImageMode || potentialName.includes(' ')) {
-                                        isCleanName = true;
-                                        finalName = potentialName;
-                                    }
-                                }
+                            if (!isName && /^[A-Z,\.\s\-]+$/.test(cleanLine) && cleanLine.split(' ').length <= 6) {
+                                isName = true;
                             }
                         }
                     }
-                    
-                    if (!isCleanName && i + 1 < lines.length) {
-                         const nextLine = lines[i + 1].toLowerCase();
-                         if (nextLine.includes('email') || nextLine.includes('@')) {
-                             if (!extractNumbersFromLine(line).length) {
-                                 let pName = cleanName(line);
-                                 const businessKeywords = /\b(inc|llc|corp|co|ltd|imports?|group|solutions)\b/i;
-                                 if (!businessKeywords.test(pName)) {
-                                     isCleanName = true;
-                                     finalName = pName;
-                                 }
-                             }
-                         }
-                    }
 
-                    if (isCleanName) {
-                        currentEntry = { name: finalName, details: [], numbers: [] };
-                        tempContacts.push(currentEntry);
+                    if (isName) {
+                        currentContact = { name: cleanLine, details: [], numbers: [] };
+                        contacts.push(currentContact);
                         continue;
                     }
 
-                    // 3. Data Line (Phones, Emails, Details)
-                    let targetEntry = currentEntry || getUnknownEntry();
+                    // 2. Sandwich Pattern Detection
+                    const addrMatch = line.match(/\b[A-Z]{2}\s+\d{5}\b/);
+                    if (addrMatch && rawPhones.length > 0) {
+                        const addrEnd = addrMatch.index + addrMatch[0].length;
+                        const firstPhoneIdx = line.search(phoneRegex);
+                        if (firstPhoneIdx > addrEnd) {
+                            const extractedName = cleanName(line.substring(addrEnd, firstPhoneIdx));
+                            if (extractedName.length > 2 && !isTechnicalGarbage(extractedName)) {
+                                currentContact = { name: extractedName, details: [line.substring(0, addrEnd)], numbers: [] };
+                                contacts.push(currentContact);
+                            }
+                        }
+                    }
 
-                    // Add Numbers with strict duplicate check
-                    rawNumbers.forEach(num => {
-                        const cleaned = cleanPhoneNumber(num);
+                    // 3. Data Accumulation with Global Deduplication
+                    let target = currentContact || null;
+                    if (!target) {
+                        target = { name: "Extracted Data", details: [], numbers: [] };
+                        contacts.push(target);
+                        currentContact = target;
+                    }
+
+                    rawPhones.forEach(p => {
+                        const cleaned = cleanPhoneNumber(p);
                         if (cleaned) {
-                            allCleanedNumbersList.push(cleaned);
-                            if (!uniqueNumbersDisplayed.has(cleaned)) {
-                                if (!targetEntry.numbers.includes(cleaned)) {
-                                    targetEntry.numbers.push(cleaned);
-                                    uniqueNumbersDisplayed.add(cleaned);
-                                }
+                            globalInstances.push(cleaned);
+                            if (!globalAssignedSet.has(cleaned)) {
+                                target.numbers.push(cleaned);
+                                globalAssignedSet.add(cleaned);
                             }
                         }
                     });
 
-                    // Add Details (Emails or Address lines)
-                    if (rawEmails.length > 0) {
-                        rawEmails.forEach(email => {
-                            if (!targetEntry.details.includes(email)) targetEntry.details.push(email);
-                        });
-                    } else if (isDetailLine(line, isImageMode)) {
-                        if (!targetEntry.details.includes(line)) {
-                            targetEntry.details.push(line);
-                        }
+                    emails.forEach(e => {
+                        if (!target.details.includes(e)) target.details.push(e);
+                    });
+
+                    if (isDetailLine(line) && !line.includes('@') && rawPhones.length === 0) {
+                        if (!target.details.includes(line)) target.details.push(line);
                     }
                 }
 
-                // Merge tempContacts into main contacts array
-                tempContacts.forEach(tContact => {
-                    const hasData = tContact.numbers.length > 0 || tContact.details.some(d => d.includes('@'));
-                    if (!hasData) return;
-
-                    const existingIndex = contacts.findIndex(c => c.name === tContact.name);
-                    if (existingIndex > -1) {
-                        const existing = contacts[existingIndex];
-                        tContact.numbers.forEach(n => {
-                            if (!existing.numbers.includes(n)) existing.numbers.push(n);
-                        });
-                        tContact.details.forEach(d => {
-                            if (!existing.details.includes(d)) existing.details.push(d);
-                        });
-                    } else {
-                        contacts.push(tContact);
-                    }
-                });
-
+                contacts = contacts.filter(c => c.numbers.length > 0 || c.details.some(d => d.includes('@')));
                 updateUI();
-                showNotification('Data processed successfully!');
+                showNotification("Process complete. Duplicates filtered.");
             };
 
-            // --- UI Update Logic ---
             const updateUI = () => {
-                updateStats();
-                renderCleanedNumbers();
-                renderAmericanFormatNumbers();
-                renderDuplicateNumbers();
-            };
+                const cleanedList = document.getElementById('cleaned-numbers-list');
+                const americanList = document.getElementById('american-format-list');
+                const duplicateList = document.getElementById('duplicate-numbers-list');
 
-            const updateStats = () => {
-                const totalCount = allCleanedNumbersList.length;
-                const uniqueCount = new Set(allCleanedNumbersList).size;
-                document.getElementById('stats-total').textContent = `Total: ${totalCount}`;
-                document.getElementById('stats-unique').textContent = `Unique: ${uniqueCount}`;
-                document.getElementById('stats-duplicates').textContent = `Duplicates: ${totalCount - uniqueCount}`;
-            };
+                cleanedList.innerHTML = '';
+                americanList.innerHTML = '';
+                duplicateList.innerHTML = '';
 
-            const renderCleanedNumbers = () => {
-                const container = document.getElementById('cleaned-numbers-list');
-                container.innerHTML = '';
-                const unknownContact = contacts.find(c => c.name === 'Unknown');
-                const imageContact = contacts.find(c => c.name === 'Extracted from image');
-                const namedContacts = contacts.filter(c => c.name !== 'Unknown' && c.name !== 'Extracted from image');
-                
-                const displayContacts = [...namedContacts];
-                if (unknownContact) displayContacts.push(unknownContact);
-                if (imageContact) displayContacts.push(imageContact);
-                
-                displayContacts.forEach(contact => {
-                    const nameEl = document.createElement('div');
-                    nameEl.className = 'contact-name';
-                    nameEl.textContent = contact.name;
-                    container.appendChild(nameEl);
+                const dupCounts = {};
+                globalInstances.forEach(n => dupCounts[n] = (dupCounts[n] || 0) + 1);
 
-                    if (contact.details && contact.details.length > 0) {
-                        const detailsContainer = document.createElement('div');
-                        detailsContainer.className = 'contact-details';
-                        contact.details.forEach(detail => {
-                            const detailDiv = document.createElement('div');
-                            detailDiv.textContent = detail;
-                            detailsContainer.appendChild(detailDiv);
-                        });
-                        container.appendChild(detailsContainer);
-                    }
-
-                    const numbersContainer = document.createElement('div');
-                    numbersContainer.className = 'contact-numbers';
-                    
-                    contact.numbers.forEach(num => {
-                        const numberDiv = document.createElement('div');
-                        numberDiv.textContent = formatCleaned(num);
-                        numbersContainer.appendChild(numberDiv);
-                    });
-                    container.appendChild(numbersContainer);
+                contacts.forEach(c => {
+                    const div = document.createElement('div');
+                    div.className = 'contact-block';
+                    div.innerHTML = `<div class="contact-name">${c.name}</div>`;
+                    c.details.forEach(d => div.innerHTML += `<div class="contact-detail">${d}</div>`);
+                    c.numbers.forEach(n => div.innerHTML += `<div class="contact-number">${formatCleaned(n)}</div>`);
+                    cleanedList.appendChild(div);
                 });
-            };
 
-            const renderAmericanFormatNumbers = () => {
-                const container = document.getElementById('american-format-list').querySelector('ul');
-                container.innerHTML = '';
-                
-                const uniqueNumbersInOrder = [];
-                const seenNumbers = new Set();
-                
-                const unknownContact = contacts.find(c => c.name === 'Unknown');
-                const imageContact = contacts.find(c => c.name === 'Extracted from image');
-                const namedContacts = contacts.filter(c => c.name !== 'Unknown' && c.name !== 'Extracted from image');
-                
-                const displayContacts = [...namedContacts];
-                if (unknownContact) displayContacts.push(unknownContact);
-                if (imageContact) displayContacts.push(imageContact);
+                Array.from(globalAssignedSet).forEach(n => {
+                    const item = document.createElement('div');
+                    item.textContent = formatAmerican(n);
+                    americanList.appendChild(item);
+                });
 
-                displayContacts.forEach(contact => {
-                    if (contact && contact.numbers) {
-                        contact.numbers.forEach(num => {
-                            if (!seenNumbers.has(num)) {
-                                uniqueNumbersInOrder.push(num);
-                                seenNumbers.add(num);
-                            }
-                        });
+                Object.entries(dupCounts).forEach(([n, count]) => {
+                    if (count > 1) {
+                        const item = document.createElement('div');
+                        // Removed "appeared" word here
+                        item.textContent = `${formatCleaned(n)} (${count} times)`;
+                        duplicateList.appendChild(item);
                     }
                 });
 
-                uniqueNumbersInOrder.forEach(num => {
-                    const li = document.createElement('li');
-                    li.textContent = formatAmerican(num);
-                    container.appendChild(li);
-                });
+                document.getElementById('stats-total').textContent = globalInstances.length;
+                document.getElementById('stats-unique').textContent = globalAssignedSet.size;
             };
 
-            const renderDuplicateNumbers = () => {
-                const container = document.getElementById('duplicate-numbers-list').querySelector('ul');
-                container.innerHTML = '';
-                const counts = {};
-                allCleanedNumbersList.forEach(num => { counts[num] = (counts[num] || 0) + 1; });
-
-                Object.entries(counts)
-                    .filter(([, count]) => count > 1)
-                    .sort(([numA], [numB]) => numA.localeCompare(numB))
-                    .forEach(([num, count]) => {
-                        const li = document.createElement('li');
-                        li.textContent = `${formatCleaned(num)} (${count} times)`;
-                        container.appendChild(li);
-                    });
-            };
-
-            const clearSession = () => {
-                contacts = [];
-                allCleanedNumbersList = [];
-                textInput.value = '';
-                updateUI();
-                showNotification('Session cleared successfully.');
-            };
-
-            let notificationTimeout;
-            const showNotification = (message, isError = false) => {
-                clearTimeout(notificationTimeout);
-                notification.textContent = message;
-                notification.className = isError ? 'error' : '';
+            const showNotification = (msg) => {
+                notification.textContent = msg;
                 notification.classList.add('show');
-                notificationTimeout = setTimeout(() => {
-                    notification.classList.remove('show');
-                }, 3000);
-            };
-            
-            const handleFiles = async (files) => {
-                const validFiles = Array.from(files).filter(file => {
-                    const isValidType = ['image/png', 'image/jpeg', 'application/pdf'].includes(file.type);
-                    const isValidSize = file.size <= 10 * 1024 * 1024; 
-                    return isValidType && isValidSize;
-                });
-
-                if (validFiles.length === 0) return;
-                
-                progressContainer.style.display = 'block';
-                ocrStatus.textContent = `Processing ${validFiles.length} file(s)...`;
-
-                let combinedText = "";
-                for (const file of validFiles) {
-                    try {
-                        const processedBlob = await preprocessImage(file);
-                        const { data: { text } } = await Tesseract.recognize(processedBlob, 'eng', {
-                            logger: m => {
-                                if (m.status === 'recognizing text') {
-                                    const progress = Math.round(m.progress * 100);
-                                    progressBar.style.width = `${progress}%`;
-                                    ocrStatus.textContent = `Recognizing text in ${file.name}... ${progress}%`;
-                                 }
-                            }
-                        });
-                        combinedText += text + '\n';
-                    } catch (error) {
-                        console.error('OCR Error:', error);
-                        showNotification(`Failed to extract text from ${file.name}.`, true);
-                    }
-                }
-                
-                processAndAccumulate(combinedText, 'image');
-                progressBar.style.width = '0%';
-                progressContainer.style.display = 'none';
-                ocrStatus.textContent = '';
+                setTimeout(() => notification.classList.remove('show'), 3000);
             };
 
             processTextBtn.addEventListener('click', () => {
-                const text = textInput.value;
-                if (!text.trim()) {
-                    showNotification('Text input is empty.', true);
-                    return;
-                }
-                processAndAccumulate(text, 'text');
+                if (!textInput.value.trim()) return showNotification("Input is empty");
+                parseData(textInput.value);
             });
 
-            clearSessionBtn.addEventListener('click', clearSession);
-            browseBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
-            dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-            dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
-            dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
-            dropZone.addEventListener('click', () => fileInput.click());
-
-            pasteBtn.addEventListener('click', () => showNotification('Press Ctrl+V to paste an image directly.'));
-            
-            document.addEventListener('paste', e => {
-                if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
-                if (e.clipboardData && e.clipboardData.files.length > 0) {
-                    handleFiles(e.clipboardData.files);
-                    e.preventDefault();
-                }
+            clearSessionBtn.addEventListener('click', () => {
+                contacts = [];
+                globalInstances = [];
+                globalAssignedSet.clear();
+                textInput.value = '';
+                updateUI();
+                showNotification("Session cleared");
             });
-            
-            copyBtns.forEach(btn => {
+
+            fileInput.addEventListener('change', async (e) => {
+                const files = e.target.files;
+                if (!files.length) return;
+                progressContainer.style.display = 'block';
+                let combinedText = '';
+                for (const f of files) {
+                    const { data: { text } } = await Tesseract.recognize(f, 'eng', {
+                        logger: m => { if (m.status === 'recognizing text') progressBar.style.width = (m.progress * 100) + '%'; }
+                    });
+                    combinedText += text + '\n';
+                }
+                progressContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+                parseData(combinedText);
+            });
+
+            document.querySelectorAll('.copy-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
-                    const targetId = btn.dataset.target;
-                    const contentElement = document.getElementById(targetId);
-                    
-                    if (!contentElement.textContent.trim()) { 
-                        showNotification('Nothing to copy.', true); 
-                        return; 
-                    }
-
-                    const textToCopy = contentElement.innerText;
-                    
-                    const textArea = document.createElement("textarea");
-                    textArea.value = textToCopy.trim();
-                    textArea.style.position = "fixed"; textArea.style.top = "-9999px"; textArea.style.left = "-9999px";
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-                    try {
-                        document.execCommand('copy') ? showNotification('Copied to clipboard!') : showNotification('Copy failed.', true);
-                    } catch (err) {
-                        console.error('Copy failed:', err);
-                    }
-                    document.body.removeChild(textArea);
+                    const target = document.getElementById(btn.dataset.target);
+                    const text = target.innerText;
+                    if (!text.trim()) return showNotification("Nothing to copy");
+                    const el = document.createElement('textarea');
+                    el.value = text;
+                    document.body.appendChild(el);
+                    el.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(el);
+                    showNotification("Copied to clipboard!");
                 });
             });
-
-            const setPlaceholder = () => {
-                textInput.value = ``;
-            };
-            
-            setPlaceholder();
-            updateUI();
         });
     </script>
 </body>
