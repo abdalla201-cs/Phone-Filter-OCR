@@ -160,6 +160,7 @@
             const progressContainer = document.getElementById('progress-container');
             const notification = document.getElementById('notification');
 
+            // --- State persists until "Clear Session" is clicked ---
             let contacts = []; 
             let globalInstances = []; 
             let globalAssignedSet = new Set(); 
@@ -199,10 +200,7 @@
 
             // --- MAIN PARSER ---
             const parseData = (text) => {
-                contacts = [];
-                globalInstances = [];
-                globalAssignedSet.clear();
-
+                // IMPORTANT: We no longer clear contacts/instances here to allow accumulation
                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
                 let currentContact = null;
 
@@ -275,9 +273,10 @@
                     }
                 }
 
+                // Filtering: keep only contacts with actual data
                 contacts = contacts.filter(c => c.numbers.length > 0 || c.details.length > 0);
                 updateUI();
-                showNotification("Process complete. Duplicates filtered.");
+                showNotification("Process complete. Added to existing data.");
             };
 
             const updateUI = () => {
@@ -326,18 +325,19 @@
             const handleFiles = async (files) => {
                 if (!files.length) return;
                 progressContainer.style.display = 'block';
-                let combinedText = '';
+                
                 for (const f of files) {
                     try {
                         const { data: { text } } = await Tesseract.recognize(f, 'eng', {
                             logger: m => { if (m.status === 'recognizing text') progressBar.style.width = (m.progress * 100) + '%'; }
                         });
-                        combinedText += text + '\n';
+                        // Process each image independently and add to list
+                        parseData(text);
                     } catch (e) { showNotification("OCR Error on " + f.name); }
                 }
+                
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
-                parseData(combinedText);
             };
 
             processTextBtn.addEventListener('click', () => {
