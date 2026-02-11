@@ -160,7 +160,7 @@
             const progressContainer = document.getElementById('progress-container');
             const notification = document.getElementById('notification');
 
-            // --- State persists until "Clear Session" is clicked ---
+            // --- Persistent Application State ---
             let contacts = []; 
             let globalInstances = []; 
             let globalAssignedSet = new Set(); 
@@ -198,9 +198,9 @@
                 return hasDigits && addrKeywords.test(line);
             };
 
-            // --- MAIN PARSER ---
+            // --- MAIN PARSER (Accumulative) ---
             const parseData = (text) => {
-                // IMPORTANT: We no longer clear contacts/instances here to allow accumulation
+                // IMPORTANT: Resetting state removed to allow accumulation of multiple pastes/images
                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
                 let currentContact = null;
 
@@ -215,6 +215,7 @@
 
                     if (rawPhones.length === 0 && !line.includes('@')) {
                         if (!isTechnicalGarbage(cleanLine) && cleanLine.length > 3) {
+                            // Lookahead for name confirmation
                             if (i + 1 < lines.length) {
                                 const next = lines[i+1].toLowerCase();
                                 const hasPhoneSignal = next.includes('phone') || next.includes('#') || next.match(phoneRegex);
@@ -273,10 +274,9 @@
                     }
                 }
 
-                // Filtering: keep only contacts with actual data
                 contacts = contacts.filter(c => c.numbers.length > 0 || c.details.length > 0);
                 updateUI();
-                showNotification("Process complete. Added to existing data.");
+                showNotification("Process complete. Accumulated into session.");
             };
 
             const updateUI = () => {
@@ -321,33 +321,31 @@
                 setTimeout(() => notification.classList.remove('show'), 3000);
             };
 
-            // --- Handlers ---
             const handleFiles = async (files) => {
                 if (!files.length) return;
                 progressContainer.style.display = 'block';
-                
                 for (const f of files) {
                     try {
                         const { data: { text } } = await Tesseract.recognize(f, 'eng', {
                             logger: m => { if (m.status === 'recognizing text') progressBar.style.width = (m.progress * 100) + '%'; }
                         });
-                        // Process each image independently and add to list
                         parseData(text);
                     } catch (e) { showNotification("OCR Error on " + f.name); }
                 }
-                
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
             };
 
             processTextBtn.addEventListener('click', () => {
-                if (!textInput.value.trim()) return showNotification("Input is empty");
-                parseData(textInput.value);
+                const text = textInput.value.trim();
+                if (!text) return showNotification("Input is empty");
+                parseData(text);
+                textInput.value = ''; // Clear textarea after processing to allow accumulation on next paste
             });
 
             clearSessionBtn.addEventListener('click', () => {
                 contacts = []; globalInstances = []; globalAssignedSet.clear(); textInput.value = ''; updateUI();
-                showNotification("Session cleared");
+                showNotification("Session cleared successfully");
             });
 
             browseBtn.addEventListener('click', () => fileInput.click());
@@ -358,7 +356,6 @@
             dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
             dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
             dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
-            dropZone.addEventListener('click', () => fileInput.click());
 
             document.addEventListener('paste', (e) => {
                 if (document.activeElement.tagName === 'TEXTAREA') return;
