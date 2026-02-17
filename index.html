@@ -93,7 +93,7 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>Cleaned extraction: No dates, no timezones, just valid data.</p>
+            <p>High-precision extraction with enhanced image processing.</p>
         </header>
 
         <section class="top-panel">
@@ -159,7 +159,6 @@
             const progressContainer = document.getElementById('progress-container');
             const notification = document.getElementById('notification');
 
-            // --- Persistent Application State ---
             let contacts = []; 
             let globalInstances = []; 
             let globalAssignedSet = new Set(); 
@@ -181,40 +180,46 @@
                           .replace(/deceased/gi, '')
                           .replace(/email address:?/gi, '')
                           .replace(/phone #\(s\):?/gi, '')
-                          .replace(/\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/gi, '') // Strip timezone noise
+                          .replace(/\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/gi, '')
                           .trim().replace(/\s{2,}/g, ' ');
             };
 
-            // Enhanced logic to detect Date noise (e.g. Jul 71 - Feb 26)
             const isDateOrTimeNoise = (str) => {
                 const lower = str.toLowerCase();
                 const months = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i;
-                const timezone = /\b(edt|est|cdt|cst|mdt|mst|pdt|pst)\b/i;
-                
-                // Match patterns like (Jul 06 - Jan 26) or (Nov 15)
+                const timezone = /\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/i;
                 const dateRangePattern = /\(?\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b.*\d{1,4}/i;
-                
-                // If it's a small chunk of text that is mostly month names and numbers, it's noise
-                const hasDateText = dateRangePattern.test(lower);
-                const hasTimezone = timezone.test(lower);
-                
-                // If the line is short and looks like a date range or timezone
-                return (hasDateText && str.length < 35) || (hasTimezone && str.length < 15);
+                return (dateRangePattern.test(lower) && str.length < 35) || (timezone.test(lower) && str.length < 15);
             };
 
-            const isTechnicalGarbage = (str) => {
-                if (isDateOrTimeNoise(str)) return true;
-                const lower = str.toLowerCase();
-                const keys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias'];
-                return keys.some(k => lower.includes(k));
-            };
-
-            const isDetailLine = (line) => {
-                if (line.includes('@')) return true;
-                if (isDateOrTimeNoise(line)) return false;
-                const hasDigits = /\d/.test(line);
-                const addrKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|hls|hl|suite|apt|unit|floor|fl|ny|nj|ca|tx|fl)\b/i;
-                return hasDigits && addrKeywords.test(line);
+            // Image Pre-processing for higher OCR accuracy on colored rows
+            const preprocessImage = async (file) => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            const data = imageData.data;
+                            // Convert to Grayscale and Apply Thresholding
+                            for (let i = 0; i < data.length; i += 4) {
+                                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                                // Simple threshold: if darker than 160, make it pure black, else white
+                                const val = avg < 160 ? 0 : 255;
+                                data[i] = data[i+1] = data[i+2] = val;
+                            }
+                            ctx.putImageData(imageData, 0, 0);
+                            resolve(canvas.toDataURL());
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
             };
 
             // --- MAIN PARSER ---
@@ -224,27 +229,23 @@
 
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
-                    
-                    // First, extract phones and emails before any "continue" logic
                     const rawPhones = line.match(phoneRegex) || [];
                     const emails = line.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
 
-                    // 1. Skip logic for text that is PURE noise (only if no data found yet on this line)
                     if (rawPhones.length === 0 && emails.length === 0 && isDateOrTimeNoise(line)) continue;
 
-                    // 2. Identify Name Line
                     let isName = false;
                     const cleanLine = cleanName(line);
 
                     if (rawPhones.length === 0 && emails.length === 0) {
-                        if (!isTechnicalGarbage(cleanLine) && cleanLine.length > 3) {
-                            // Lookahead signals
+                        const lowerLine = cleanLine.toLowerCase();
+                        const techKeys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax'];
+                        const isTech = techKeys.some(k => lowerLine.includes(k));
+
+                        if (!isTech && cleanLine.length > 3) {
                             if (i + 1 < lines.length) {
                                 const next = lines[i+1].toLowerCase();
-                                const hasPhoneSignal = next.includes('phone') || next.includes('#') || next.match(phoneRegex);
-                                const hasEmailSignal = next.includes('@') || next.includes('email address');
-                                const hasTechSignal = next.includes('sources') || next.includes('type');
-                                if (hasPhoneSignal || hasEmailSignal || hasTechSignal) isName = true;
+                                if (next.includes('phone') || next.includes('#') || next.match(phoneRegex) || next.includes('@')) isName = true;
                             }
                             if (!isName && /^[A-Z,\.\s\-]+$/.test(cleanLine) && cleanLine.split(' ').length <= 6) isName = true;
                         }
@@ -256,63 +257,45 @@
                         continue;
                     }
 
-                    // 3. Sandwich Pattern Detection
-                    const addrMatch = line.match(/\b[A-Z]{2}\s+\d{5}\b/);
-                    if (addrMatch && rawPhones.length > 0) {
-                        const addrEnd = addrMatch.index + addrMatch[0].length;
-                        const firstPhoneIdx = line.search(phoneRegex);
-                        if (firstPhoneIdx > addrEnd) {
-                            const extractedName = cleanName(line.substring(addrEnd, firstPhoneIdx));
-                            if (extractedName.length > 2 && !isTechnicalGarbage(extractedName)) {
-                                currentContact = { name: extractedName, details: [line.substring(0, addrEnd)], numbers: [] };
-                                contacts.push(currentContact);
-                            }
-                        }
-                    }
-
-                    // 4. Data Accumulation
                     let target = currentContact || null;
-                    if (!target) {
-                        if (rawPhones.length > 0 || emails.length > 0) {
-                            target = { name: "Extracted Data", details: [], numbers: [] };
-                            contacts.push(target);
-                            currentContact = target;
-                        } else continue;
+                    if (!target && (rawPhones.length > 0 || emails.length > 0)) {
+                        target = { name: "Extracted Data", details: [], numbers: [] };
+                        contacts.push(target);
+                        currentContact = target;
                     }
 
-                    // Handle Phones found on this line
-                    rawPhones.forEach(p => {
-                        const cleaned = cleanPhoneNumber(p);
-                        if (cleaned) {
-                            globalInstances.push(cleaned);
-                            if (!globalAssignedSet.has(cleaned)) {
-                                target.numbers.push(cleaned);
-                                globalAssignedSet.add(cleaned);
+                    if (target) {
+                        rawPhones.forEach(p => {
+                            const cleaned = cleanPhoneNumber(p);
+                            if (cleaned) {
+                                globalInstances.push(cleaned);
+                                if (!globalAssignedSet.has(cleaned)) {
+                                    target.numbers.push(cleaned);
+                                    globalAssignedSet.add(cleaned);
+                                }
                             }
+                        });
+                        emails.forEach(e => { if (!target.details.includes(e)) target.details.push(e); });
+                        // Add Address Details if not a phone/email/name line
+                        if (rawPhones.length === 0 && emails.length === 0 && !isName) {
+                             const hasDigits = /\d/.test(line);
+                             const addrKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|hls|hl|suite|apt|unit|floor|fl|ny|nj|ca|tx|fl)\b/i;
+                             if (hasDigits && addrKeywords.test(line)) {
+                                 if (!target.details.includes(line)) target.details.push(line);
+                             }
                         }
-                    });
-
-                    // Handle Emails found on this line
-                    emails.forEach(e => { if (!target.details.includes(e)) target.details.push(e); });
-
-                    // Handle Details (Addresses) found on this line
-                    if (isDetailLine(line) && emails.length === 0 && rawPhones.length === 0) {
-                        if (!target.details.includes(line)) target.details.push(line);
                     }
                 }
-
-                // Final filtering
                 contacts = contacts.filter(c => c.numbers.length > 0 || c.details.length > 0);
                 updateUI();
-                showNotification("Cleaned data added successfully.");
             };
 
             const updateUI = () => {
                 const cleanedList = document.getElementById('cleaned-numbers-list');
                 const americanList = document.getElementById('american-format-list');
                 const duplicateList = document.getElementById('duplicate-numbers-list');
-
                 cleanedList.innerHTML = ''; americanList.innerHTML = ''; duplicateList.innerHTML = '';
+                
                 const dupCounts = {};
                 globalInstances.forEach(n => dupCounts[n] = (dupCounts[n] || 0) + 1);
 
@@ -354,7 +337,8 @@
                 progressContainer.style.display = 'block';
                 for (const f of files) {
                     try {
-                        const { data: { text } } = await Tesseract.recognize(f, 'eng', {
+                        const processedDataUrl = await preprocessImage(f);
+                        const { data: { text } } = await Tesseract.recognize(processedDataUrl, 'eng', {
                             logger: m => { if (m.status === 'recognizing text') progressBar.style.width = (m.progress * 100) + '%'; }
                         });
                         parseData(text);
@@ -362,6 +346,7 @@
                 }
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
+                showNotification("Image data processed with high contrast.");
             };
 
             processTextBtn.addEventListener('click', () => {
@@ -378,7 +363,6 @@
 
             browseBtn.addEventListener('click', () => fileInput.click());
             fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
-
             pasteBtn.addEventListener('click', () => showNotification("Press Ctrl+V to paste an image directly"));
 
             dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
@@ -390,9 +374,7 @@
                 if (document.activeElement.tagName === 'TEXTAREA') return;
                 const items = (e.clipboardData || e.originalEvent.clipboardData).items;
                 const files = [];
-                for (const item of items) {
-                    if (item.type.indexOf("image") !== -1) files.push(item.getAsFile());
-                }
+                for (const item of items) { if (item.type.indexOf("image") !== -1) files.push(item.getAsFile()); }
                 if (files.length > 0) handleFiles(files);
             });
 
