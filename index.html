@@ -76,6 +76,7 @@
         
         .copy-btn { float: right; padding: 4px 8px; font-size: 0.75rem; background-color: var(--border-color); margin-top: -5px; }
 
+        /* Contact UI */
         .contact-block { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
         .contact-name { font-weight: bold; color: #fff; font-size: 1.1rem; margin-bottom: 5px; text-transform: uppercase; }
         .contact-detail { color: var(--text-secondary); opacity: 0.8; font-size: 0.85rem; margin-left: 5px; }
@@ -93,7 +94,7 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>Smart extraction with robust name recognition and deduplication.</p>
+            <p>Smart extraction with comprehensive display and unique list generation.</p>
         </header>
 
         <section class="top-panel">
@@ -134,7 +135,7 @@
                 <div class="result-content" id="cleaned-numbers-list"></div>
             </div>
             <div class="card">
-                <h3>🇺🇸 American Format <button class="copy-btn" data-target="american-format-list">Copy</button></h3>
+                <h3>🇺🇸 American Format (Unique) <button class="copy-btn" data-target="american-format-list">Copy</button></h3>
                 <div class="result-content" id="american-format-list"></div>
             </div>
             <div class="card">
@@ -159,11 +160,15 @@
             const progressContainer = document.getElementById('progress-container');
             const notification = document.getElementById('notification');
 
+            // --- Persistent Application State ---
             let contacts = []; 
             let globalInstances = []; 
             let globalAssignedSet = new Set(); 
 
             const phoneRegex = /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g;
+
+            // --- Utilities ---
+            const extractNumbersFromLine = (line) => line.match(phoneRegex) || [];
 
             const cleanPhoneNumber = (raw) => {
                 let cleaned = raw.replace(/[^\d]/g, '');
@@ -183,18 +188,13 @@
                           .trim().replace(/\s{2,}/g, ' ');
             };
 
-            const isTechnicalGarbage = (str) => {
+            const isDateOrTimeNoise = (str) => {
                 const lower = str.toLowerCase();
-                // Expanded list to catch "EMAIL ADDRESS:" and "PHONE #(S)"
-                const keys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias', 'email address', 'phone #', 'records found'];
-                return keys.some(k => lower.includes(k));
-            };
-
-            const isDetailLine = (line) => {
-                if (line.includes('@')) return true;
-                const hasDigits = /\d/.test(line);
-                const addrKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|hls|hl|suite|apt|unit|floor|fl|ny|nj|ca|tx|fl)\b/i;
-                return hasDigits && addrKeywords.test(line);
+                const months = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i;
+                const timezone = /\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/i;
+                const datePattern = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b\s*\d{1,4}/i;
+                const hasRange = /\d{2}\s*-\s*\w{3}/.test(lower);
+                return (datePattern.test(lower) && (hasRange || str.length < 30)) || timezone.test(lower);
             };
 
             const preprocessImage = async (file) => {
@@ -227,77 +227,228 @@
                 });
             };
 
+            const extractEmails = (line) => {
+                const emailRegex = /[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g;
+                return line.match(emailRegex) || [];
+            };
+
+            const nameBlacklist = ['record', 'listing', 'header', 'vehicle', 'warranty', 'bank', 'bureau', 'source', 'type', 'household', 'experian', 'transunion', 'equifax', 'phone', 'associated', 'relatives'];
+
+            const findEmbeddedName = (line) => {
+                const nameRegex = /\b([A-Z][a-z]+|[A-Z]+),\s+([A-Z][a-z]+|[A-Z]+)(?:\s+[A-Z]\.?)?\b/g;
+                let match;
+                
+                const stateCodes = new Set(['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY']);
+                
+                const addressWords = ['Ave', 'St', 'Rd', 'Blvd', 'Dr', 'Ln', 'Ct', 'Pl'];
+
+                while ((match = nameRegex.exec(line)) !== null) {
+                    const potentialName = match[0];
+                    const firstPart = match[1];
+                    const secondPart = match[2];
+
+                    if (stateCodes.has(secondPart.toUpperCase())) continue;
+                    if (addressWords.includes(firstPart)) continue;
+
+                    const lowerName = potentialName.toLowerCase();
+                    if (nameBlacklist.some(bad => lowerName.includes(bad))) continue;
+
+                    return potentialName; 
+                }
+                return null;
+            };
+
+            const isTechnicalGarbage = (str) => {
+                if (isDateOrTimeNoise(str)) return true;
+                const lower = str.toLowerCase();
+                const keys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias', 'email address', 'phone #', 'records found'];
+                return keys.some(k => lower.includes(k));
+            };
+
+            const isDetailLine = (line, isStrict = false) => {
+                if (line.includes('@')) return true;
+                if (isStrict) return false;
+                if (isTechnicalGarbage(line)) return false;
+                if (/\d{3}-\d{4}/.test(line) || /\(\d{3}\)/.test(line)) return false;
+                const startNoise = ['residence', 'business', 'wireless', 'land line', 'voip', 'mobile', 'gateway', 'voice line'];
+                if (startNoise.some(noise => line.toLowerCase().startsWith(noise))) return false;
+                const hasDigits = /\d/.test(line);
+                const addrKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|hls|hl|suite|apt|unit|floor|fl|ny|nj|ca|tx|fl)\b/i;
+                return hasDigits && addrKeywords.test(line);
+            };
+
+            const isValidNameLine = (line, isImageMode) => {
+                if (line.includes('@')) return false;
+                if (isTechnicalGarbage(line)) return false;
+                
+                const potentialName = cleanName(line);
+                const hasDigits = /\d/.test(potentialName);
+                const isAgeInfo = /\bage\s*:?\s*\d+/i.test(potentialName);
+                const isEntity = /\b(Trust|Estate|Revocable|Living|Inc|LLC)\b/i.test(potentialName);
+
+                if (hasDigits && !isAgeInfo && !isEntity) return false;
+
+                const lowerLine = potentialName.toLowerCase();
+                const isAKA = lowerLine.includes(' aka ') || lowerLine.startsWith('aka ') || lowerLine.includes(', aka');
+                const noiseWords = ['phone', 'source', 'voicemail', 'email address'];
+                
+                if (!isAKA && noiseWords.some(word => lowerLine.includes(word))) return false;
+                
+                const businessKeywords = /\b(inc|llc|corp|co|ltd|imports?|group|solutions)\b/i;
+                if (businessKeywords.test(potentialName) && !isEntity) return false;
+
+                if (potentialName.split(/\s+/).length > 10 || potentialName.length < 2) return false;
+                if (isImageMode && !potentialName.includes(' ')) return false;
+
+                if (nameBlacklist.some(bad => lowerLine.includes(bad))) return false;
+
+                return true;
+            };
+
+            // --- MAIN PARSER ---
             const parseData = (text) => {
                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
                 let currentContact = null;
 
+                // Temp list for this batch
+                let tempContacts = [];
+                let currentEntry = null;
+
+                const getUnknownEntry = () => {
+                    let entry = tempContacts.find(c => c.name === "Unknown / Image Data");
+                    if (!entry) {
+                        entry = { name: "Unknown / Image Data", details: [], numbers: [] };
+                        tempContacts.push(entry);
+                    }
+                    return entry;
+                };
+
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
-                    const rawPhones = line.match(phoneRegex) || [];
-                    const emails = line.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
+                    const rawPhones = extractNumbersFromLine(line);
+                    const emails = extractEmails(line);
 
-                    let isName = false;
-                    const cleanLine = cleanName(line);
+                    if (rawPhones.length === 0 && emails.length === 0 && isDateOrTimeNoise(line)) continue;
 
-                    // Name Detection Logic
-                    if (rawPhones.length === 0 && emails.length === 0) {
-                        if (!isTechnicalGarbage(cleanLine) && cleanLine.length > 3) {
-                            // Signals that the previous line was likely a name
-                            if (i + 1 < lines.length) {
-                                const next = lines[i+1].toLowerCase();
-                                const hasPhoneSignal = next.includes('phone') || next.includes('#') || next.match(phoneRegex);
-                                const hasEmailSignal = next.includes('@') || next.includes('email address');
-                                const hasTechSignal = next.includes('sources') || next.includes('type');
-                                if (hasPhoneSignal || hasEmailSignal || hasTechSignal) isName = true;
-                            }
-                            // ALL CAPS check as secondary confirmation
-                            if (!isName && /^[A-Z,\.\s\-]+$/.test(cleanLine) && cleanLine.split(' ').length <= 6) isName = true;
-                        }
-                    }
-
-                    if (isName) {
-                        currentContact = { name: cleanLine, details: [], numbers: [] };
-                        contacts.push(currentContact);
-                        continue;
-                    }
-
-                    let target = currentContact || null;
-                    if (!target && (rawPhones.length > 0 || emails.length > 0)) {
-                        target = { name: "Extracted Data", details: [], numbers: [] };
-                        contacts.push(target);
-                        currentContact = target;
-                    }
-
-                    if (target) {
+                    // 1. Embedded Name Found
+                    const embeddedName = findEmbeddedName(line);
+                    if (embeddedName) {
+                        currentEntry = { name: cleanName(embeddedName).toUpperCase(), details: [], numbers: [] };
+                        tempContacts.push(currentEntry);
+                        
                         rawPhones.forEach(p => {
                             const cleaned = cleanPhoneNumber(p);
                             if (cleaned) {
                                 globalInstances.push(cleaned);
-                                if (!globalAssignedSet.has(cleaned)) {
-                                    target.numbers.push(cleaned);
-                                    globalAssignedSet.add(cleaned);
-                                }
+                                globalAssignedSet.add(cleaned);
+                                if (!currentEntry.numbers.includes(cleaned)) currentEntry.numbers.push(cleaned);
                             }
                         });
-                        emails.forEach(e => { if (!target.details.includes(e)) target.details.push(e); });
-                        
-                        if (rawPhones.length === 0 && emails.length === 0 && !isName) {
-                             if (isDetailLine(line)) {
-                                 if (!target.details.includes(line)) target.details.push(line);
-                             }
+                        emails.forEach(e => { if (!currentEntry.details.includes(e)) currentEntry.details.push(e); });
+                        continue; 
+                    }
+
+                    // 2. Address-Sandwich Name Logic
+                    const addrMatch = line.match(/\b[A-Z]{2}\s+\d{5}\b/);
+                    let sandwichedName = null;
+                    let sandwichAddress = null;
+
+                    if (addrMatch && rawPhones.length > 0) {
+                        const addrEnd = addrMatch.index + addrMatch[0].length;
+                        const firstPhoneIdx = line.search(phoneRegex);
+                        if (firstPhoneIdx > addrEnd) {
+                            const extracted = cleanName(line.substring(addrEnd, firstPhoneIdx));
+                            if (extracted.length > 2 && !isTechnicalGarbage(extracted) && !nameBlacklist.some(b => extracted.toLowerCase().includes(b))) {
+                                sandwichedName = extracted;
+                                sandwichAddress = line.substring(0, addrEnd).trim();
+                            }
                         }
                     }
+
+                    if (sandwichedName) {
+                        currentEntry = { name: sandwichedName.toUpperCase(), details: [], numbers: [] };
+                        if (sandwichAddress) currentEntry.details.push(sandwichAddress);
+                        tempContacts.push(currentEntry);
+                        rawPhones.forEach(p => {
+                            const cleaned = cleanPhoneNumber(p);
+                            if (cleaned) {
+                                globalInstances.push(cleaned);
+                                globalAssignedSet.add(cleaned);
+                                if (!currentEntry.numbers.includes(cleaned)) currentEntry.numbers.push(cleaned);
+                            }
+                        });
+                        continue;
+                    }
+
+                    // 3. Name Line Detection
+                    let isName = false;
+                    let finalName = "";
+
+                    // Lookahead
+                    if (i + 1 < lines.length) {
+                         const next = lines[i+1].toLowerCase();
+                         if (next.includes('email') || next.includes('@')) {
+                             if (!extractNumbersFromLine(line).length) {
+                                 if (isValidNameLine(line, false)) { isName = true; finalName = cleanName(line); }
+                             }
+                         }
+                    }
+                    // Standard
+                    if (!isName && rawPhones.length === 0) {
+                         if (isValidNameLine(line, false)) { isName = true; finalName = cleanName(line); }
+                    }
+
+                    if (isName) {
+                        currentEntry = { name: finalName.toUpperCase(), details: [], numbers: [] };
+                        tempContacts.push(currentEntry);
+                        continue;
+                    }
+
+                    // 4. Data Accumulation
+                    let target = currentEntry || getUnknownEntry();
+
+                    rawPhones.forEach(p => {
+                        const cleaned = cleanPhoneNumber(p);
+                        if (cleaned) {
+                            globalInstances.push(cleaned);
+                            globalAssignedSet.add(cleaned);
+                            if (!target.numbers.includes(cleaned)) target.numbers.push(cleaned);
+                        }
+                    });
+
+                    emails.forEach(e => { if (!target.details.includes(e)) target.details.push(e); });
+                    
+                    if (rawPhones.length === 0 && emails.length === 0 && !isName) {
+                         if (isDetailLine(line, false)) {
+                             if (!target.details.includes(line)) target.details.push(line);
+                         }
+                    }
                 }
-                contacts = contacts.filter(c => c.numbers.length > 0 || c.details.length > 0);
+
+                // Merge tempContacts into main contacts array
+                tempContacts.forEach(t => {
+                    const hasData = t.numbers.length > 0 || t.details.some(d => d.includes('@'));
+                    if (!hasData) return;
+                    
+                    const existing = contacts.find(c => c.name.toUpperCase() === t.name.toUpperCase());
+                    if (existing) {
+                        t.numbers.forEach(n => { if (!existing.numbers.includes(n)) existing.numbers.push(n); });
+                        t.details.forEach(d => { if (!existing.details.includes(d)) existing.details.push(d); });
+                    } else {
+                        contacts.push(t);
+                    }
+                });
+
                 updateUI();
+                showNotification("Process complete. Accumulated into session.");
             };
 
             const updateUI = () => {
                 const cleanedList = document.getElementById('cleaned-numbers-list');
                 const americanList = document.getElementById('american-format-list');
                 const duplicateList = document.getElementById('duplicate-numbers-list');
+
                 cleanedList.innerHTML = ''; americanList.innerHTML = ''; duplicateList.innerHTML = '';
-                
                 const dupCounts = {};
                 globalInstances.forEach(n => dupCounts[n] = (dupCounts[n] || 0) + 1);
 
@@ -348,7 +499,6 @@
                 }
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
-                showNotification("Image data processed with high precision.");
             };
 
             processTextBtn.addEventListener('click', () => {
@@ -365,6 +515,7 @@
 
             browseBtn.addEventListener('click', () => fileInput.click());
             fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
             pasteBtn.addEventListener('click', () => showNotification("Press Ctrl+V to paste an image directly"));
 
             dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
@@ -383,12 +534,14 @@
             document.querySelectorAll('.copy-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const target = document.getElementById(btn.dataset.target);
-                    const range = document.createRange();
-                    range.selectNode(target);
-                    window.getSelection().removeAllRanges();
-                    window.getSelection().addRange(range);
+                    const text = target.innerText;
+                    if (!text.trim()) return showNotification("Nothing to copy");
+                    const el = document.createElement('textarea');
+                    el.value = text;
+                    document.body.appendChild(el);
+                    el.select();
                     document.execCommand('copy');
-                    window.getSelection().removeAllRanges();
+                    document.body.removeChild(el);
                     showNotification("Copied to clipboard!");
                 });
             });
