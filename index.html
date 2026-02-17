@@ -94,7 +94,7 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>Smart extraction with comprehensive display and unique list generation.</p>
+            <p>Smart extraction with global deduplication of phone numbers.</p>
         </header>
 
         <section class="top-panel">
@@ -232,7 +232,14 @@
                 return line.match(emailRegex) || [];
             };
 
-            const nameBlacklist = ['record', 'listing', 'header', 'vehicle', 'warranty', 'bank', 'bureau', 'source', 'type', 'household', 'experian', 'transunion', 'equifax', 'phone', 'associated', 'relatives'];
+            // Enhanced Blacklist: Words that absolutely CANNOT be a person's name
+            const nameBlacklist = [
+                'record', 'listing', 'header', 'vehicle', 'warranty', 'bank', 'bureau', 
+                'source', 'type', 'household', 'experian', 'transunion', 'equifax', 
+                'phone', 'associated', 'relatives', 'alias', 'licenses', 'professional', 
+                'work', 'affiliations', 'public', 'gateway', 'residence', 'business', 
+                'wireless', 'voip', 'land', 'line', 'cell', 'cellular'
+            ];
 
             const findEmbeddedName = (line) => {
                 const nameRegex = /\b([A-Z][a-z]+|[A-Z]+),\s+([A-Z][a-z]+|[A-Z]+)(?:\s+[A-Z]\.?)?\b/g;
@@ -261,8 +268,8 @@
             const isTechnicalGarbage = (str) => {
                 if (isDateOrTimeNoise(str)) return true;
                 const lower = str.toLowerCase();
-                const keys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias', 'email address', 'phone #', 'records found'];
-                return keys.some(k => lower.includes(k));
+                // Check if any word in the line is a blacklist word
+                return nameBlacklist.some(k => lower.includes(k));
             };
 
             const isDetailLine = (line, isStrict = false) => {
