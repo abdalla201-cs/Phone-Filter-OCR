@@ -76,7 +76,6 @@
         
         .copy-btn { float: right; padding: 4px 8px; font-size: 0.75rem; background-color: var(--border-color); margin-top: -5px; }
 
-        /* Contact UI */
         .contact-block { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
         .contact-name { font-weight: bold; color: #fff; font-size: 1.1rem; margin-bottom: 5px; text-transform: uppercase; }
         .contact-detail { color: var(--text-secondary); opacity: 0.8; font-size: 0.85rem; margin-left: 5px; }
@@ -94,7 +93,7 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>Smart extraction with global deduplication of phone numbers.</p>
+            <p>Smart extraction with date filtering and global deduplication.</p>
         </header>
 
         <section class="top-panel">
@@ -160,7 +159,6 @@
             const progressContainer = document.getElementById('progress-container');
             const notification = document.getElementById('notification');
 
-            // --- Persistent Application State ---
             let contacts = []; 
             let globalInstances = []; 
             let globalAssignedSet = new Set(); 
@@ -185,14 +183,28 @@
                           .trim().replace(/\s{2,}/g, ' ');
             };
 
+            // Helper to check for date ranges like (Jan 01 - Dec 22) or Month names
+            const isDateOrTimeNoise = (str) => {
+                const lower = str.toLowerCase();
+                const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                // Check for Month name + Year pattern or "EDT" noise
+                const hasMonth = months.some(m => lower.includes(m));
+                const hasTimezone = /\b(edt|est|cdt|cst|mdt|mst|pdt|pst)\b/i.test(lower);
+                const hasRangePattern = /\d{2}\s*-\s*\w{3}/.test(lower) || /\w{3}\s*\d{2}\s*-\s*\w{3}/.test(lower);
+                
+                return (hasMonth && (hasRangePattern || /\d{2}/.test(lower))) || hasTimezone;
+            };
+
             const isTechnicalGarbage = (str) => {
                 const lower = str.toLowerCase();
+                if (isDateOrTimeNoise(str)) return true;
                 const keys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias'];
                 return keys.some(k => lower.includes(k));
             };
 
             const isDetailLine = (line) => {
                 if (line.includes('@')) return true;
+                if (isDateOrTimeNoise(line)) return false;
                 const hasDigits = /\d/.test(line);
                 const addrKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|hls|hl|suite|apt|unit|floor|fl|ny|nj|ca|tx|fl)\b/i;
                 return hasDigits && addrKeywords.test(line);
@@ -200,7 +212,6 @@
 
             // --- MAIN PARSER (Accumulative) ---
             const parseData = (text) => {
-                // IMPORTANT: Resetting state removed to allow accumulation of multiple pastes/images
                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
                 let currentContact = null;
 
@@ -209,13 +220,15 @@
                     const rawPhones = line.match(phoneRegex) || [];
                     const emails = line.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
 
-                    // 1. Identify Name Line
+                    // 1. Identify Name Line (Strict)
                     let isName = false;
                     const cleanLine = cleanName(line);
 
+                    // Skip lines that are purely Noise/Dates
+                    if (isDateOrTimeNoise(line)) continue;
+
                     if (rawPhones.length === 0 && !line.includes('@')) {
                         if (!isTechnicalGarbage(cleanLine) && cleanLine.length > 3) {
-                            // Lookahead for name confirmation
                             if (i + 1 < lines.length) {
                                 const next = lines[i+1].toLowerCase();
                                 const hasPhoneSignal = next.includes('phone') || next.includes('#') || next.match(phoneRegex);
@@ -276,7 +289,7 @@
 
                 contacts = contacts.filter(c => c.numbers.length > 0 || c.details.length > 0);
                 updateUI();
-                showNotification("Process complete. Accumulated into session.");
+                showNotification("Process complete. Added to session.");
             };
 
             const updateUI = () => {
@@ -340,7 +353,7 @@
                 const text = textInput.value.trim();
                 if (!text) return showNotification("Input is empty");
                 parseData(text);
-                textInput.value = ''; // Clear textarea after processing to allow accumulation on next paste
+                textInput.value = ''; 
             });
 
             clearSessionBtn.addEventListener('click', () => {
@@ -356,6 +369,7 @@
             dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
             dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
             dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+            dropZone.addEventListener('click', () => fileInput.click());
 
             document.addEventListener('paste', (e) => {
                 if (document.activeElement.tagName === 'TEXTAREA') return;
