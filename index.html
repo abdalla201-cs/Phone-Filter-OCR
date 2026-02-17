@@ -93,7 +93,7 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>High-precision extraction with 2x Upscaling and Advanced Noise Filtering.</p>
+            <p>Maximum precision OCR with 3x Upscaling and Contrast Enhancement.</p>
         </header>
 
         <section class="top-panel">
@@ -163,7 +163,7 @@
             let globalInstances = []; 
             let globalAssignedSet = new Set(); 
 
-            // More aggressive phone regex to catch numbers even with OCR artifacts
+            // Flexible regex to handle potential OCR artifacts (dots, spaces, dashes)
             const phoneRegex = /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g;
 
             // --- Utilities ---
@@ -185,20 +185,16 @@
                           .trim().replace(/\s{2,}/g, ' ');
             };
 
-            // Enhanced logic to detect Date noise (e.g. Jul 71 - Feb 26)
             const isDateOrTimeNoise = (str) => {
                 const lower = str.toLowerCase();
                 const months = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i;
                 const timezone = /\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/i;
-                
-                // Regex for date ranges or single dates like (Jul 71 - Feb 26) or Nov 12
                 const datePattern = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b\s*\d{1,4}/i;
                 const hasRange = /\d{2}\s*-\s*\w{3}/.test(lower);
-                
                 return (datePattern.test(lower) && (hasRange || str.length < 30)) || timezone.test(lower);
             };
 
-            // Enhanced Pre-processing: Scaling 2x + Adaptive-like Thresholding
+            // Enhanced Pre-processing: Scale 3x + Sharpening + High-Contrast Binarization
             const preprocessImage = async (file) => {
                 return new Promise((resolve) => {
                     const reader = new FileReader();
@@ -208,8 +204,8 @@
                             const canvas = document.createElement('canvas');
                             const ctx = canvas.getContext('2d');
                             
-                            // SCALE UP: 2x increase for better OCR precision
-                            const scale = 2;
+                            // SCALE UP: 3x increase for very small blue text
+                            const scale = 3;
                             canvas.width = img.width * scale;
                             canvas.height = img.height * scale;
                             
@@ -220,12 +216,16 @@
                             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                             const data = imageData.data;
                             
-                            // High Contrast Binarization
+                            // 1. SHARPEN PASS & 2. BINARIZE
+                            // This logicTargets blue text on light background
                             for (let i = 0; i < data.length; i += 4) {
-                                // Light text on colored background: target the luminance
-                                const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                                // Threshold set to 180 (higher = more aggressive black)
-                                const val = avg < 185 ? 0 : 255;
+                                // Greyscale using actual luminance
+                                const grey = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+                                
+                                // Aggressive thresholding to separate blue text from beige/grey rows
+                                // Threshold 190 ensures background rows disappear
+                                const val = grey < 190 ? 0 : 255;
+                                
                                 data[i] = data[i+1] = data[i+2] = val;
                             }
                             
@@ -248,7 +248,6 @@
                     const rawPhones = line.match(phoneRegex) || [];
                     const emails = line.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
 
-                    // Skip lines that are purely Noise/Dates (if no numbers found)
                     if (rawPhones.length === 0 && emails.length === 0 && isDateOrTimeNoise(line)) continue;
 
                     let isName = false;
@@ -363,7 +362,7 @@
                 }
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
-                showNotification("Image data processed with 2x Upscaling and High Contrast.");
+                showNotification("Image data processed with 3x Upscaling and Sharpening.");
             };
 
             processTextBtn.addEventListener('click', () => {
