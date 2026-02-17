@@ -93,7 +93,7 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>Smart extraction with date filtering and global deduplication.</p>
+            <p>Cleaned extraction: No dates, no timezones, just valid data.</p>
         </header>
 
         <section class="top-panel">
@@ -159,6 +159,7 @@
             const progressContainer = document.getElementById('progress-container');
             const notification = document.getElementById('notification');
 
+            // --- Persistent Application State ---
             let contacts = []; 
             let globalInstances = []; 
             let globalAssignedSet = new Set(); 
@@ -180,24 +181,30 @@
                           .replace(/deceased/gi, '')
                           .replace(/email address:?/gi, '')
                           .replace(/phone #\(s\):?/gi, '')
+                          .replace(/\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/gi, '') // Strip timezone noise
                           .trim().replace(/\s{2,}/g, ' ');
             };
 
-            // Helper to check for date ranges like (Jan 01 - Dec 22) or Month names
+            // Enhanced logic to detect Date noise (e.g. Jul 71 - Feb 26)
             const isDateOrTimeNoise = (str) => {
                 const lower = str.toLowerCase();
-                const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                // Check for Month name + Year pattern or "EDT" noise
-                const hasMonth = months.some(m => lower.includes(m));
-                const hasTimezone = /\b(edt|est|cdt|cst|mdt|mst|pdt|pst)\b/i.test(lower);
-                const hasRangePattern = /\d{2}\s*-\s*\w{3}/.test(lower) || /\w{3}\s*\d{2}\s*-\s*\w{3}/.test(lower);
+                const months = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i;
+                const timezone = /\b(edt|est|cdt|cst|mdt|mst|pdt|pst)\b/i;
                 
-                return (hasMonth && (hasRangePattern || /\d{2}/.test(lower))) || hasTimezone;
+                // Match patterns like (Jul 06 - Jan 26) or (Nov 15)
+                const dateRangePattern = /\(?\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b.*\d{1,4}/i;
+                
+                // If it's a small chunk of text that is mostly month names and numbers, it's noise
+                const hasDateText = dateRangePattern.test(lower);
+                const hasTimezone = timezone.test(lower);
+                
+                // If the line is short and looks like a date range or timezone
+                return (hasDateText && str.length < 35) || (hasTimezone && str.length < 15);
             };
 
             const isTechnicalGarbage = (str) => {
-                const lower = str.toLowerCase();
                 if (isDateOrTimeNoise(str)) return true;
+                const lower = str.toLowerCase();
                 const keys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias'];
                 return keys.some(k => lower.includes(k));
             };
@@ -210,25 +217,28 @@
                 return hasDigits && addrKeywords.test(line);
             };
 
-            // --- MAIN PARSER (Accumulative) ---
+            // --- MAIN PARSER ---
             const parseData = (text) => {
                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
                 let currentContact = null;
 
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
+                    
+                    // First, extract phones and emails before any "continue" logic
                     const rawPhones = line.match(phoneRegex) || [];
                     const emails = line.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g) || [];
 
-                    // 1. Identify Name Line (Strict)
+                    // 1. Skip logic for text that is PURE noise (only if no data found yet on this line)
+                    if (rawPhones.length === 0 && emails.length === 0 && isDateOrTimeNoise(line)) continue;
+
+                    // 2. Identify Name Line
                     let isName = false;
                     const cleanLine = cleanName(line);
 
-                    // Skip lines that are purely Noise/Dates
-                    if (isDateOrTimeNoise(line)) continue;
-
-                    if (rawPhones.length === 0 && !line.includes('@')) {
+                    if (rawPhones.length === 0 && emails.length === 0) {
                         if (!isTechnicalGarbage(cleanLine) && cleanLine.length > 3) {
+                            // Lookahead signals
                             if (i + 1 < lines.length) {
                                 const next = lines[i+1].toLowerCase();
                                 const hasPhoneSignal = next.includes('phone') || next.includes('#') || next.match(phoneRegex);
@@ -246,7 +256,7 @@
                         continue;
                     }
 
-                    // 2. Sandwich Pattern Detection
+                    // 3. Sandwich Pattern Detection
                     const addrMatch = line.match(/\b[A-Z]{2}\s+\d{5}\b/);
                     if (addrMatch && rawPhones.length > 0) {
                         const addrEnd = addrMatch.index + addrMatch[0].length;
@@ -260,7 +270,7 @@
                         }
                     }
 
-                    // 3. Data Accumulation
+                    // 4. Data Accumulation
                     let target = currentContact || null;
                     if (!target) {
                         if (rawPhones.length > 0 || emails.length > 0) {
@@ -270,6 +280,7 @@
                         } else continue;
                     }
 
+                    // Handle Phones found on this line
                     rawPhones.forEach(p => {
                         const cleaned = cleanPhoneNumber(p);
                         if (cleaned) {
@@ -281,15 +292,19 @@
                         }
                     });
 
+                    // Handle Emails found on this line
                     emails.forEach(e => { if (!target.details.includes(e)) target.details.push(e); });
-                    if (isDetailLine(line) && !line.includes('@') && rawPhones.length === 0) {
+
+                    // Handle Details (Addresses) found on this line
+                    if (isDetailLine(line) && emails.length === 0 && rawPhones.length === 0) {
                         if (!target.details.includes(line)) target.details.push(line);
                     }
                 }
 
+                // Final filtering
                 contacts = contacts.filter(c => c.numbers.length > 0 || c.details.length > 0);
                 updateUI();
-                showNotification("Process complete. Added to session.");
+                showNotification("Cleaned data added successfully.");
             };
 
             const updateUI = () => {
