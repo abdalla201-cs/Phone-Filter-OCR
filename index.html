@@ -74,8 +74,8 @@
         .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; margin-top: 10px; }
         .result-content { font-family: 'Courier New', Courier, monospace; font-size: 0.95rem; background-color: var(--bg-input); padding: 15px; border-radius: 8px; min-height: 250px; max-height: 600px; overflow-y: auto; }
         
-        .copy-btn { float: right; padding: 4px 8px; font-size: 0.75rem; background-color: var(--border-color); margin-top: -5px; }
-        .copy-btn:hover { transform: translateY(-50%); background-color: var(--border-color); }
+        .copy-btn { margin-left: auto; padding: 4px 10px; font-size: 0.75rem; background-color: var(--border-color); margin-top: 0; transform: none !important; }
+        .copy-btn:hover { background-color: var(--bg-input); opacity: 0.9; transform: none !important; }
 
         /* Contact UI */
         .contact-block { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
@@ -95,7 +95,7 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>High-precision filtering: Removes junk, dates, and fake names.</p>
+            <p>Smart extraction with rich text copy for Evernote.</p>
         </header>
 
         <section class="top-panel">
@@ -188,14 +188,13 @@
             
             const extractNumbersFromLine = (line) => line.match(phoneRegex) || [];
 
-            // STRICT NOISE FILTER for Dates and Time
             const isDateOrTimeNoise = (str) => {
                 const lower = str.toLowerCase();
                 const months = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i;
                 const timezone = /\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/i;
                 const datePattern = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b\s*\d{1,4}/i;
                 const hasRange = /\d{2}\s*-\s*\w{3}/.test(lower);
-                return (datePattern.test(lower) && (hasRange || str.length < 35)) || timezone.test(lower);
+                return (datePattern.test(lower) && (hasRange || str.length < 30)) || timezone.test(lower);
             };
 
             const preprocessImage = async (file) => {
@@ -233,21 +232,26 @@
                 return line.match(emailRegex) || [];
             };
 
-            const nameBlacklist = ['record', 'listing', 'header', 'vehicle', 'warranty', 'bank', 'bureau', 'source', 'type', 'household', 'experian', 'transunion', 'equifax', 'phone', 'associated', 'relatives', 'alias', 'licenses', 'professional', 'work', 'affiliations', 'public', 'gateway', 'residence', 'business', 'wireless', 'voip', 'land', 'line', 'cell', 'cellular', 'pastor', 'church', 'contact', 'here\'s', 'service', 'renovation', 'extract', 'data', 'unknown'];
+            const nameBlacklist = ['record', 'listing', 'header', 'vehicle', 'warranty', 'bank', 'bureau', 'source', 'type', 'household', 'experian', 'transunion', 'equifax', 'phone', 'associated', 'relatives', 'alias', 'licenses', 'professional', 'work', 'affiliations', 'public', 'gateway', 'residence', 'business', 'wireless', 'voip', 'land', 'line', 'cell', 'cellular'];
 
             const findEmbeddedName = (line) => {
                 const nameRegex = /\b([A-Z][a-z]+|[A-Z]+),\s+([A-Z][a-z]+|[A-Z]+)(?:\s+[A-Z]\.?)?\b/g;
                 let match;
+                
                 const stateCodes = new Set(['AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY']);
                 const addressWords = ['Ave', 'St', 'Rd', 'Blvd', 'Dr', 'Ln', 'Ct', 'Pl'];
+
                 while ((match = nameRegex.exec(line)) !== null) {
                     const potentialName = match[0];
                     const firstPart = match[1];
                     const secondPart = match[2];
+
                     if (stateCodes.has(secondPart.toUpperCase())) continue;
                     if (addressWords.includes(firstPart)) continue;
+
                     const lowerName = potentialName.toLowerCase();
                     if (nameBlacklist.some(bad => lowerName.includes(bad))) continue;
+
                     return potentialName; 
                 }
                 return null;
@@ -256,7 +260,8 @@
             const isTechnicalGarbage = (str) => {
                 if (isDateOrTimeNoise(str)) return true;
                 const lower = str.toLowerCase();
-                return nameBlacklist.some(k => lower.includes(k));
+                const keys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias', 'email address', 'phone #', 'records found'];
+                return keys.some(k => lower.includes(k));
             };
 
             const isDetailLine = (line, isStrict = false) => {
@@ -274,27 +279,34 @@
             const isValidNameLine = (line, isImageMode) => {
                 if (line.includes('@')) return false;
                 if (isTechnicalGarbage(line)) return false;
+                
                 const potentialName = cleanName(line);
                 const hasDigits = /\d/.test(potentialName);
                 const isAgeInfo = /\bage\s*:?\s*\d+/i.test(potentialName);
                 const isEntity = /\b(Trust|Estate|Revocable|Living|Inc|LLC)\b/i.test(potentialName);
+
                 if (hasDigits && !isAgeInfo && !isEntity) return false;
+
                 const lowerLine = potentialName.toLowerCase();
                 const isAKA = lowerLine.includes(' aka ') || lowerLine.startsWith('aka ') || lowerLine.includes(', aka');
                 const noiseWords = ['phone', 'source', 'voicemail', 'email address'];
+                
                 if (!isAKA && noiseWords.some(word => lowerLine.includes(word))) return false;
+                
                 const businessKeywords = /\b(inc|llc|corp|co|ltd|imports?|group|solutions)\b/i;
                 if (businessKeywords.test(potentialName) && !isEntity) return false;
+
                 if (potentialName.split(/\s+/).length > 10 || potentialName.length < 2) return false;
                 if (isImageMode && !potentialName.includes(' ')) return false;
+
                 if (nameBlacklist.some(bad => lowerLine.includes(bad))) return false;
+
                 return true;
             };
 
             // --- MAIN PARSER ---
             const parseData = (text) => {
                 const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-                
                 let tempContacts = [];
                 let currentEntry = null;
 
@@ -306,11 +318,6 @@
                     }
                     return entry;
                 };
-
-                // Populate unique set with ALREADY existing numbers from previous sessions
-                contacts.forEach(c => {
-                    c.numbers.forEach(num => globalAssignedSet.add(num));
-                });
 
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
@@ -351,7 +358,6 @@
                         const firstPhoneIdx = line.search(phoneRegex);
                         if (firstPhoneIdx > addrEnd) {
                             const extracted = cleanName(line.substring(addrEnd, firstPhoneIdx));
-                            // Check if extracted part is NOT technical garbage
                             if (extracted.length > 2 && !isTechnicalGarbage(extracted) && !nameBlacklist.some(b => extracted.toLowerCase().includes(b))) {
                                 sandwichedName = extracted;
                                 sandwichAddress = line.substring(0, addrEnd).trim();
@@ -464,7 +470,8 @@
                     cleanedList.appendChild(div);
                 });
 
-                Array.from(globalAssignedSet).sort().forEach(n => {
+                // Display unique list IN ORDER OF APPEARANCE - NO SORTING
+                Array.from(globalAssignedSet).forEach(n => {
                     const item = document.createElement('div');
                     item.textContent = formatAmerican(n);
                     americanList.appendChild(item);
@@ -502,6 +509,7 @@
                 }
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
+                showNotification("Image data processed with high precision.");
             };
 
             processTextBtn.addEventListener('click', () => {
@@ -575,8 +583,22 @@
                         document.body.removeChild(tempDiv);
                         showNotification("Formatted text copied!");
 
+                    } else if (targetId === 'american-format-list') {
+                        // For American format, we want plain text but NO sorting, strictly order of appearance
+                        // globalAssignedSet iterates in insertion order
+                        const uniqueOrdered = Array.from(globalAssignedSet);
+                        const textToCopy = uniqueOrdered.map(n => formatAmerican(n)).join('\n');
+                        
+                        const el = document.createElement('textarea');
+                        el.value = textToCopy;
+                        document.body.appendChild(el);
+                        el.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(el);
+                        showNotification("Copied ordered list!");
+
                     } else {
-                        // Plain Text Copy (Fallback)
+                        // Fallback
                         const target = document.getElementById(targetId);
                         const text = target.innerText;
                         if (!text.trim()) return showNotification("Nothing to copy");
