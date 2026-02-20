@@ -95,7 +95,7 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>Smart extraction with rich text copy for Evernote.</p>
+            <p>Ultimate Precision: Intelligent filtering, strict deduplication, and rich copy.</p>
         </header>
 
         <section class="top-panel">
@@ -188,13 +188,21 @@
             
             const extractNumbersFromLine = (line) => line.match(phoneRegex) || [];
 
+            // Advanced Date/Time Scrubber (Handles OCR errors like (JUL 71 - FEB 2¢)
             const isDateOrTimeNoise = (str) => {
                 const lower = str.toLowerCase();
-                const months = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i;
                 const timezone = /\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/i;
-                const datePattern = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b\s*\d{1,4}/i;
-                const hasRange = /\d{2}\s*-\s*\w{3}/.test(lower);
-                return (datePattern.test(lower) && (hasRange || str.length < 30)) || timezone.test(lower);
+                if (timezone.test(lower) && str.length < 20) return true;
+                
+                const monthsRegex = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/ig;
+                const matches = str.match(monthsRegex);
+                if (matches) {
+                    // If it contains 2 or more month names, it's definitely a date range
+                    if (matches.length >= 2 && str.length < 40) return true;
+                    // If it contains 1 month name and is a short string, it's a date
+                    if (matches.length === 1 && str.length < 20) return true;
+                }
+                return false;
             };
 
             const preprocessImage = async (file) => {
@@ -232,7 +240,34 @@
                 return line.match(emailRegex) || [];
             };
 
-            const nameBlacklist = ['record', 'listing', 'header', 'vehicle', 'warranty', 'bank', 'bureau', 'source', 'type', 'household', 'experian', 'transunion', 'equifax', 'phone', 'associated', 'relatives', 'alias', 'licenses', 'professional', 'work', 'affiliations', 'public', 'gateway', 'residence', 'business', 'wireless', 'voip', 'land', 'line', 'cell', 'cellular'];
+            // Phrased blacklist to prevent Scunthorpe problem (e.g., 'jacqueline' failing because of 'line')
+            const techPhrases = [
+                'sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 
+                'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 
+                'previous', 'associated', 'relatives', 'email address', 'phone #', 
+                'records found', 'phone record', 'professional licenses', 'work affiliations', 
+                'public records', 'gateway', 'residence', 'business', 'wireless', 'voip', 
+                'land line', 'cellular', 'neighbors', 'extracted data'
+            ];
+
+            // Strict exact-word blockers for embedded names like "Record, Household"
+            const invalidNameParts = [
+                'record', 'records', 'listing', 'header', 'licenses', 'affiliations', 
+                'vehicle', 'warranty', 'bureau', 'source', 'sources', 'household', 
+                'experian', 'transunion', 'equifax'
+            ];
+
+            // Conversation blocker to delete sentences/notes
+            const isConversation = (str) => {
+                const lower = str.toLowerCase();
+                const words = [
+                    'said', 'told', 'called', 'spoke', 'ask', 'know', 'selling', 'interested', 
+                    'offer', 'document', 'grandma', 'wife', 'husband', 'daughter', 'son', 
+                    'tenant', 'owner', 'texted', 'voicemail', 'wrong', 'disconnected', 
+                    'busy', 'repeat', 'speaker', 'message'
+                ];
+                return words.some(w => new RegExp('\\b' + w + '\\b').test(lower));
+            };
 
             const findEmbeddedName = (line) => {
                 const nameRegex = /\b([A-Z][a-z]+|[A-Z]+),\s+([A-Z][a-z]+|[A-Z]+)(?:\s+[A-Z]\.?)?\b/g;
@@ -243,14 +278,14 @@
 
                 while ((match = nameRegex.exec(line)) !== null) {
                     const potentialName = match[0];
-                    const firstPart = match[1];
-                    const secondPart = match[2];
+                    const firstPart = match[1].toLowerCase();
+                    const secondPart = match[2].toLowerCase();
 
                     if (stateCodes.has(secondPart.toUpperCase())) continue;
-                    if (addressWords.includes(firstPart)) continue;
+                    if (addressWords.includes(match[1])) continue;
 
-                    const lowerName = potentialName.toLowerCase();
-                    if (nameBlacklist.some(bad => lowerName.includes(bad))) continue;
+                    // Reject explicitly invalid parts to stop "Record, Household"
+                    if (invalidNameParts.includes(firstPart) || invalidNameParts.includes(secondPart)) continue;
 
                     return potentialName; 
                 }
@@ -260,17 +295,16 @@
             const isTechnicalGarbage = (str) => {
                 if (isDateOrTimeNoise(str)) return true;
                 const lower = str.toLowerCase();
-                const keys = ['sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 'null', 'associated', 'relatives', 'alias', 'email address', 'phone #', 'records found'];
-                return keys.some(k => lower.includes(k));
+                return techPhrases.some(p => lower.includes(p));
             };
 
             const isDetailLine = (line, isStrict = false) => {
                 if (line.includes('@')) return true;
                 if (isStrict) return false;
                 if (isTechnicalGarbage(line)) return false;
+                if (isConversation(line)) return false;
                 if (/\d{3}-\d{4}/.test(line) || /\(\d{3}\)/.test(line)) return false;
-                const startNoise = ['residence', 'business', 'wireless', 'land line', 'voip', 'mobile', 'gateway', 'voice line'];
-                if (startNoise.some(noise => line.toLowerCase().startsWith(noise))) return false;
+                
                 const hasDigits = /\d/.test(line);
                 const addrKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|hls|hl|suite|apt|unit|floor|fl|ny|nj|ca|tx|fl)\b/i;
                 return hasDigits && addrKeywords.test(line);
@@ -279,8 +313,13 @@
             const isValidNameLine = (line, isImageMode) => {
                 if (line.includes('@')) return false;
                 if (isTechnicalGarbage(line)) return false;
+                if (isConversation(line)) return false;
                 
                 const potentialName = cleanName(line);
+                
+                // MUST contain at least one letter (blocks '---' and random symbols)
+                if (!/[a-zA-Z]/.test(potentialName)) return false;
+
                 const hasDigits = /\d/.test(potentialName);
                 const isAgeInfo = /\bage\s*:?\s*\d+/i.test(potentialName);
                 const isEntity = /\b(Trust|Estate|Revocable|Living|Inc|LLC)\b/i.test(potentialName);
@@ -289,17 +328,14 @@
 
                 const lowerLine = potentialName.toLowerCase();
                 const isAKA = lowerLine.includes(' aka ') || lowerLine.startsWith('aka ') || lowerLine.includes(', aka');
-                const noiseWords = ['phone', 'source', 'voicemail', 'email address'];
                 
-                if (!isAKA && noiseWords.some(word => lowerLine.includes(word))) return false;
+                if (!isAKA && techPhrases.some(p => lowerLine.includes(p))) return false;
                 
                 const businessKeywords = /\b(inc|llc|corp|co|ltd|imports?|group|solutions)\b/i;
                 if (businessKeywords.test(potentialName) && !isEntity) return false;
 
-                if (potentialName.split(/\s+/).length > 10 || potentialName.length < 2) return false;
+                if (potentialName.split(/\s+/).length > 8 || potentialName.length < 2) return false;
                 if (isImageMode && !potentialName.includes(' ')) return false;
-
-                if (nameBlacklist.some(bad => lowerLine.includes(bad))) return false;
 
                 return true;
             };
@@ -311,19 +347,25 @@
                 let currentEntry = null;
 
                 const getUnknownEntry = () => {
-                    let entry = tempContacts.find(c => c.name === "Unknown / Image Data");
+                    let entry = tempContacts.find(c => c.name === "Extracted Data");
                     if (!entry) {
-                        entry = { name: "Unknown / Image Data", details: [], numbers: [] };
+                        entry = { name: "Extracted Data", details: [], numbers: [] };
                         tempContacts.push(entry);
                     }
                     return entry;
                 };
+
+                // Accumulate to global stats to maintain strict uniqueness across sessions
+                contacts.forEach(c => {
+                    c.numbers.forEach(num => globalAssignedSet.add(num));
+                });
 
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
                     const rawPhones = extractNumbersFromLine(line);
                     const emails = extractEmails(line);
 
+                    // Skip lines that are purely noise dates/time
                     if (rawPhones.length === 0 && emails.length === 0 && isDateOrTimeNoise(line)) continue;
 
                     // 1. Embedded Name Found
@@ -358,7 +400,7 @@
                         const firstPhoneIdx = line.search(phoneRegex);
                         if (firstPhoneIdx > addrEnd) {
                             const extracted = cleanName(line.substring(addrEnd, firstPhoneIdx));
-                            if (extracted.length > 2 && !isTechnicalGarbage(extracted) && !nameBlacklist.some(b => extracted.toLowerCase().includes(b))) {
+                            if (extracted.length > 2 && !isTechnicalGarbage(extracted) && !isConversation(extracted)) {
                                 sandwichedName = extracted;
                                 sandwichAddress = line.substring(0, addrEnd).trim();
                             }
@@ -388,16 +430,17 @@
                     let isName = false;
                     let finalName = "";
 
-                    // Lookahead
+                    // Lookahead: If next line has headers, highly likely current is a name
                     if (i + 1 < lines.length) {
                          const next = lines[i+1].toLowerCase();
-                         if (next.includes('email') || next.includes('@')) {
+                         const hasSignal = next.includes('email') || next.includes('@') || next.includes('phone') || next.includes('sources') || next.includes('type') || next.includes('#');
+                         if (hasSignal) {
                              if (!extractNumbersFromLine(line).length) {
                                  if (isValidNameLine(line, false)) { isName = true; finalName = cleanName(line); }
                              }
                          }
                     }
-                    // Standard
+                    // Standard verification
                     if (!isName && rawPhones.length === 0) {
                          if (isValidNameLine(line, false)) { isName = true; finalName = cleanName(line); }
                     }
@@ -415,7 +458,7 @@
                         const cleaned = cleanPhoneNumber(p);
                         if (cleaned) {
                             globalInstances.push(cleaned);
-                            // STRICT DEDUPLICATION: Only add if NEVER seen before in session
+                            // STRICT DEDUPLICATION
                             if (!globalAssignedSet.has(cleaned)) {
                                 if (!target.numbers.includes(cleaned)) {
                                     target.numbers.push(cleaned);
@@ -436,7 +479,8 @@
 
                 // Merge tempContacts into main contacts array
                 tempContacts.forEach(t => {
-                    const hasData = t.numbers.length > 0 || t.details.some(d => d.includes('@'));
+                    // Only keep contacts that actually gathered data
+                    const hasData = t.numbers.length > 0 || t.details.length > 0;
                     if (!hasData) return;
                     
                     const existing = contacts.find(c => c.name.toUpperCase() === t.name.toUpperCase());
@@ -585,7 +629,6 @@
 
                     } else if (targetId === 'american-format-list') {
                         // For American format, we want plain text but NO sorting, strictly order of appearance
-                        // globalAssignedSet iterates in insertion order
                         const uniqueOrdered = Array.from(globalAssignedSet);
                         const textToCopy = uniqueOrdered.map(n => formatAmerican(n)).join('\n');
                         
