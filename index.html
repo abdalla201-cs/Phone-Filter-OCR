@@ -239,7 +239,6 @@
 
             // Call Built-in Gemini API for Image/Text to Structured JSON
             const extractStructuredDataWithGemini = async (text = null, file = null) => {
-                // Using the built-in free tier platform key
                 const apiKey = "";
                 const modelName = 'gemini-2.5-flash-preview-09-2025';
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
@@ -301,7 +300,7 @@
                                             phones: { type: "ARRAY", items: { type: "STRING" } },
                                             emails: { type: "ARRAY", items: { type: "STRING" } }
                                         },
-                                        required: ["name", "phones", "emails"]
+                                        required: ["name", "phones"] // Removed strictly required emails to prevent parse failures
                                     }
                                 }
                             },
@@ -310,8 +309,8 @@
                     }
                 };
 
-                const maxRetries = 5;
-                const delays = [1000, 2000, 4000, 8000, 16000];
+                const maxRetries = 2; // قللنا المحاولات لعدم الانتظار طويلاً في حال فشل السيرفر
+                const delays = [1000, 2000];
 
                 for (let i = 0; i <= maxRetries; i++) {
                     try {
@@ -350,11 +349,13 @@
                 if (!Array.isArray(extractedContacts)) return;
                 
                 extractedContacts.forEach(apiContact => {
-                    // Data Validation
+                    // Data Validation & Handling Missing Names
                     if (!apiContact || typeof apiContact !== 'object') return;
-                    if (!apiContact.name || typeof apiContact.name !== 'string' || apiContact.name.trim() === '') return;
                     
-                    let nameToUse = apiContact.name.toUpperCase();
+                    let nameToUse = (apiContact.name && typeof apiContact.name === 'string' && apiContact.name.trim() !== '') 
+                                    ? apiContact.name.toUpperCase() 
+                                    : "EXTRACTED DATA";
+
                     if (nameToUse === "UNKNOWN") nameToUse = "EXTRACTED DATA";
 
                     let currentEntry = contacts.find(c => c.name.toUpperCase() === nameToUse);
@@ -447,10 +448,22 @@
                 return techPhrases.some(p => lower.includes(p)) || nameBlacklist.some(w => lower.includes(w));
             };
 
+            const isDetailLine = (line, isStrict = false) => {
+                if (line.includes('@')) return true;
+                if (isStrict) return false;
+                if (isTechnicalGarbage(line)) return false;
+                if (isConversation(line)) return false;
+                if (/\d{3}-\d{4}/.test(line) || /\(\d{3}\)/.test(line)) return false;
+                
+                const hasDigits = /\d/.test(line);
+                const addrKeywords = /\b(st|ave|rd|blvd|dr|ln|ct|pl|hls|hl|suite|apt|unit|floor|fl|ny|nj|ca|tx|fl)\b/i;
+                return hasDigits && addrKeywords.test(line);
+            };
+
             const isValidNameLine = (line, isImageMode) => {
                 if (line.includes('@')) return false;
                 if (isTechnicalGarbage(line)) return false;
-                if (/(said|told|called|spoke|texted|doesnt|doesn't|selling|future|interested|wrong)/i.test(line)) return false;
+                if (isConversation(line)) return false;
                 
                 const potentialName = cleanName(line);
                 
@@ -630,7 +643,7 @@
                     const div = document.createElement('div');
                     div.className = 'contact-block';
                     div.innerHTML = `<div class="contact-name">${c.name}</div>`;
-                    c.details.forEach(d => div.innerHTML += `<div class="contact-detail">${d}</div>`);
+                    c.details.forEach(d => div.innerHTML += `<div class="contact-detail">📧 ${d}</div>`);
                     c.numbers.forEach(n => div.innerHTML += `<div class="contact-number">${formatCleaned(n)}</div>`);
                     
                     cleanedList.appendChild(div);
@@ -695,8 +708,10 @@
                     }
                 };
 
-                // معالجة الصور بشكل متوازي للسرعة الفائقة 
-                await Promise.all(Array.from(files).map(f => processSingleFile(f)));
+                // التعديل الرئيسي: معالجة الصور بالترتيب واحدة تلو الأخرى لتجنب الحظر
+                for (const f of files) {
+                    await processSingleFile(f);
+                }
 
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
@@ -716,8 +731,12 @@
                 
                 try {
                     const extractedContacts = await extractStructuredDataWithGemini(text, null);
-                    mergeContacts(extractedContacts);
-                    showNotification("AI Extraction Complete!");
+                    if(extractedContacts && extractedContacts.length > 0){
+                        mergeContacts(extractedContacts);
+                        showNotification("AI Extraction Complete!");
+                    } else {
+                         throw new Error("No contacts found");
+                    }
                     textInput.value = ''; 
                 } catch (e) {
                     console.error(e);
