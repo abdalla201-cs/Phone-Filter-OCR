@@ -80,7 +80,7 @@
         /* Contact UI */
         .contact-block { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
         .contact-name { font-weight: bold; color: #fff; font-size: 1.1rem; margin-bottom: 5px; text-transform: uppercase; }
-        .contact-detail { color: var(--text-secondary); opacity: 0.8; font-size: 0.85rem; margin-left: 5px; }
+        .contact-detail { color: var(--text-secondary); opacity: 0.8; font-size: 0.85rem; margin-left: 5px; margin-bottom: 3px; }
         .contact-number { color: var(--accent-color); font-weight: 500; margin-top: 2px; }
 
         #notification { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background-color: var(--success-color); color: white; padding: 12px 24px; border-radius: 8px; transition: 0.5s; z-index: 1000; }
@@ -95,14 +95,14 @@
     <div class="container">
         <header>
             <h1>Phone Number Processor Pro</h1>
-            <p>Ultimate Precision: Intelligent filtering, strict deduplication, and rich copy.</p>
+            <p>Strict Extraction: Names, Emails, and Phone Numbers Only.</p>
         </header>
 
         <section class="top-panel">
             <div class="card">
                 <h3>🖼️ OCR Image Upload</h3>
                 <div style="margin-bottom: 15px; width: 100%;">
-                    <input type="password" id="gemini-api-key" placeholder="Enter Gemini API Key here..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--bg-dark); color: var(--text-primary); box-sizing: border-box;" title="Your key is saved securely in your browser's local storage.">
+                    <input type="password" id="gemini-api-key" placeholder="Optional: Enter Gemini API Key (leave empty for built-in AI)" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--bg-dark); color: var(--text-primary); box-sizing: border-box;" title="Your key is saved securely in your browser's local storage.">
                 </div>
                 <div id="drop-zone">
                     <p>Drag images here or click to browse</p>
@@ -209,6 +209,30 @@
                 return (datePattern.test(lower) && (hasRange || str.length < 30)) || timezone.test(lower);
             };
 
+            const isConversation = (str) => {
+                return /\b(said|told|called|spoke|texted|doesnt|doesn't|selling|future|interested|wrong|secretary|owner|project[s]?|propert(y|ies)|office|cell|hung\sup|confirms?|claims?|tied\sup|voicemail|vm|message|hello)\b/i.test(str);
+            };
+
+            // دالة معالجة الصورة السريعة لتوضيحها قبل الاستخراج
+            const preprocessImage = async (file) => {
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            canvas.width = img.width * 2;
+                            canvas.height = img.height * 2;
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            resolve(canvas.toDataURL('image/jpeg', 0.8));
+                        };
+                        img.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            };
+
             // Utility to convert File to Base64 for Gemini API
             const fileToBase64 = (file) => {
                 return new Promise((resolve, reject) => {
@@ -219,19 +243,41 @@
                 });
             };
 
-            // Call Gemini API for Image/Text to Structured JSON with Exponential Backoff
+            // Call Gemini API for Image/Text to Structured JSON
             const extractStructuredDataWithGemini = async (apiKey, text = null, file = null) => {
-                // Use the stable model that works seamlessly with personal API keys
-                const modelName = 'gemini-2.5-flash';
+                // Dual Logic: Use standard model for custom keys, preview model for built-in empty key
+                const modelName = apiKey ? 'gemini-2.5-flash' : 'gemini-2.5-flash-preview-09-2025';
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-                const prompt = `You are a highly precise data extraction assistant. Extract contacts from the provided data.
+                // VERY STRICT Prompt with Few-Shot Example
+                const prompt = `You are a highly precise data extraction assistant. Extract ONLY contacts from the provided data.
                 CRITICAL RULES:
-                1. Extract EVERY SINGLE phone number you see in the image or text. DO NOT miss any numbers.
-                2. Identify the real human name or business name associated with the phone number. If there is no clear name, use "EXTRACTED DATA" as the name.
-                3. Ignore technical terms, dates, timestamps, and conversational noise (e.g., 'texted', 'spoke', 'record', 'household').
-                4. Extract all emails and address details if present.
-                5. Output strictly as JSON. Return an empty array only if absolutely zero phone numbers or emails exist.`;
+                1. Extract EVERY SINGLE phone number you see. This is your absolute primary goal. Do not miss any numbers.
+                2. Identify the real MAIN human name or business name. If none is clearly found, output "UNKNOWN".
+                3. DO NOT extract secondary names mentioned in notes (like "secretary's name is Jackie"). 
+                4. Extract ONLY emails.
+                5. ABSOLUTELY IGNORE AND EXCLUDE addresses, street names, locations, technical terms, timestamps, and conversational noise.
+                6. Maintain the EXACT order of appearance as the original text.
+                7. Output strictly as JSON.
+
+                EXAMPLE INPUT:
+                DANA MESSINA
+                214-01 Jamaica Ave, Queens Village, NY 11428
+                secretary's name is Jackie
+                not selling now or in the near future
+                hung up (212-988-9412)
+                Business number (718-446-0566)
+                
+                EXTRACTED DATA
+                (718) 205-5323
+
+                EXAMPLE OUTPUT:
+                {
+                  "contacts": [
+                    { "name": "DANA MESSINA", "phones": ["2129889412", "7184460566"], "emails": [] },
+                    { "name": "UNKNOWN", "phones": ["7182055323"], "emails": [] }
+                  ]
+                }`;
 
                 const parts = [{ text: prompt }];
                 
@@ -259,10 +305,9 @@
                                         properties: {
                                             name: { type: "STRING", description: "Person or business name" },
                                             phones: { type: "ARRAY", items: { type: "STRING" } },
-                                            emails: { type: "ARRAY", items: { type: "STRING" } },
-                                            details: { type: "ARRAY", items: { type: "STRING" } }
+                                            emails: { type: "ARRAY", items: { type: "STRING" } }
                                         },
-                                        required: ["name", "phones", "emails", "details"]
+                                        required: ["name", "phones", "emails"]
                                     }
                                 }
                             },
@@ -271,8 +316,9 @@
                     }
                 };
 
-                const maxRetries = 5;
-                const delays = [1000, 2000, 4000, 8000, 16000];
+                const maxRetries = 2; // تقليل المحاولات لتسريع وقت الاستجابة
+                const delays = [1000, 2000, 3000];
+                let lastErrorMsg = "";
 
                 for (let i = 0; i <= maxRetries; i++) {
                     try {
@@ -293,8 +339,14 @@
                         const data = JSON.parse(jsonText);
                         return data.contacts || [];
                     } catch (error) {
+                        lastErrorMsg = error.message;
+                        
+                        if (lastErrorMsg.includes("API key") || lastErrorMsg.includes("not found")) {
+                             throw new Error(lastErrorMsg);
+                        }
+
                         if (i === maxRetries) {
-                            throw new Error("فشل الاتصال بالذكاء الاصطناعي بعد عدة محاولات.");
+                            throw new Error("فشل الاتصال بالذكاء الاصطناعي: " + lastErrorMsg);
                         }
                         await new Promise(resolve => setTimeout(resolve, delays[i]));
                     }
@@ -305,9 +357,12 @@
                 extractedContacts.forEach(apiContact => {
                     if (!apiContact.name || apiContact.name.trim() === '') return;
                     
-                    let currentEntry = contacts.find(c => c.name.toUpperCase() === apiContact.name.toUpperCase());
+                    let nameToUse = apiContact.name.toUpperCase();
+                    if (nameToUse === "UNKNOWN") nameToUse = "EXTRACTED DATA";
+
+                    let currentEntry = contacts.find(c => c.name.toUpperCase() === nameToUse);
                     if (!currentEntry) {
-                        currentEntry = { name: apiContact.name.toUpperCase(), details: [], numbers: [] };
+                        currentEntry = { name: nameToUse, details: [], numbers: [] };
                         contacts.push(currentEntry);
                     }
                     
@@ -328,9 +383,6 @@
                         if (!currentEntry.details.includes(e)) currentEntry.details.push(e);
                     });
                     
-                    (apiContact.details || []).forEach(d => {
-                        if (!currentEntry.details.includes(d)) currentEntry.details.push(d);
-                    });
                 });
                 
                 contacts = contacts.filter(c => c.numbers.length > 0 || c.details.length > 0);
@@ -348,7 +400,8 @@
                 'previous', 'associated', 'relatives', 'email address', 'phone #', 
                 'records found', 'phone record', 'professional licenses', 'work affiliations', 
                 'public records', 'gateway', 'residence', 'business', 'wireless', 'voip', 
-                'land line', 'cellular', 'neighbors', 'extracted data'
+                'land line', 'cellular', 'neighbors', 'extracted data', 'owns many', 'nice properties', 'other properties',
+                'not selling', 'near future', 'not interested', 'do not call', 'wrong number'
             ];
 
             const nameBlacklist = [
@@ -358,7 +411,8 @@
                 'work', 'affiliations', 'public', 'gateway', 'residence', 'business', 
                 'wireless', 'voip', 'land', 'line', 'cell', 'cellular', 'pastor', 'church', 
                 'contact', 'here\'s', 'service', 'renovation', 'extract', 'data', 'unknown',
-                'deceased', 'neighbors', 'email', 'address'
+                'deceased', 'neighbors', 'email', 'address', 'owns', 'properties', 'nice', 'speaker', 'speaks', 'spanish',
+                'selling', 'future', 'interested', 'wrong'
             ];
 
             const findEmbeddedName = (line) => {
@@ -394,7 +448,7 @@
                 if (line.includes('@')) return true;
                 if (isStrict) return false;
                 if (isTechnicalGarbage(line)) return false;
-                if (/(said|told|called|spoke|texted|doesnt)/i.test(line)) return false;
+                if (isConversation(line)) return false;
                 if (/\d{3}-\d{4}/.test(line) || /\(\d{3}\)/.test(line)) return false;
                 
                 const hasDigits = /\d/.test(line);
@@ -405,7 +459,7 @@
             const isValidNameLine = (line, isImageMode) => {
                 if (line.includes('@')) return false;
                 if (isTechnicalGarbage(line)) return false;
-                if (/(said|told|called|spoke|texted|doesnt)/i.test(line)) return false;
+                if (isConversation(line)) return false;
                 
                 const potentialName = cleanName(line);
                 
@@ -459,7 +513,7 @@
 
                     if (rawPhones.length === 0 && emails.length === 0) {
                         if (isDateOrTimeNoise(line)) continue;
-                        if (/(said|told|called|spoke|texted|doesnt)/i.test(line)) continue;
+                        if (isConversation(line)) continue;
                         if (!/[a-zA-Z0-9]/.test(line)) continue; 
                     }
 
@@ -486,23 +540,20 @@
 
                     const addrMatch = line.match(/\b[A-Z]{2}\s+\d{5}\b/);
                     let sandwichedName = null;
-                    let sandwichAddress = null;
 
                     if (addrMatch && rawPhones.length > 0) {
                         const addrEnd = addrMatch.index + addrMatch[0].length;
                         const firstPhoneIdx = line.search(phoneRegex);
                         if (firstPhoneIdx > addrEnd) {
                             const extracted = cleanName(line.substring(addrEnd, firstPhoneIdx));
-                            if (extracted.length > 2 && !isTechnicalGarbage(extracted) && !/(said|told|called|spoke|texted|doesnt)/i.test(extracted)) {
+                            if (extracted.length > 2 && !isTechnicalGarbage(extracted) && !isConversation(extracted)) {
                                 sandwichedName = extracted;
-                                sandwichAddress = line.substring(0, addrEnd).trim();
                             }
                         }
                     }
 
                     if (sandwichedName) {
                         currentEntry = { name: sandwichedName.toUpperCase(), details: [], numbers: [] };
-                        if (sandwichAddress) currentEntry.details.push(sandwichAddress);
                         tempContacts.push(currentEntry);
                         rawPhones.forEach(p => {
                             const cleaned = cleanPhoneNumber(p);
@@ -557,12 +608,6 @@
                     });
 
                     emails.forEach(e => { if (!target.details.includes(e)) target.details.push(e); });
-                    
-                    if (rawPhones.length === 0 && emails.length === 0 && !isName) {
-                         if (isDetailLine(line, false)) {
-                             if (!target.details.includes(line)) target.details.push(line);
-                         }
-                    }
                 }
 
                 tempContacts.forEach(t => {
@@ -628,34 +673,36 @@
                 if (!files.length) return;
 
                 const apiKey = geminiApiKeyInput ? geminiApiKeyInput.value.trim() : '';
-                if (!apiKey) {
-                    showNotification("Please enter your Gemini API Key first!");
-                    if(geminiApiKeyInput) geminiApiKeyInput.focus();
-                    return;
-                }
-
+                
                 progressContainer.style.display = 'block';
                 progressBar.style.width = '50%'; 
 
-                for (const f of files) {
+                const processSingleFile = async (f) => {
                     try {
                         const extractedContacts = await extractStructuredDataWithGemini(apiKey, null, f);
-                        mergeContacts(extractedContacts);
+                        if (extractedContacts && extractedContacts.length > 0) {
+                            mergeContacts(extractedContacts);
+                        } else {
+                            throw new Error("No data found by AI");
+                        }
                     } catch (e) { 
-                        console.error(e);
-                        showNotification("Gemini Error: Falling back to normal OCR.");
+                        console.error("AI or Extraction Error:", e);
                         try {
                             const processedDataUrl = await preprocessImage(f);
                             const { data: { text } } = await Tesseract.recognize(processedDataUrl, 'eng', {});
                             parseData(text);
                         } catch (ocrErr) {
-                            showNotification("OCR Error on " + f.name);
+                            console.error("OCR Error on " + f.name, ocrErr);
                         }
                     }
-                }
+                };
+
+                // معالجة جميع الصور بالتوازي لسرعة فائقة (Parallel Processing)
+                await Promise.all(Array.from(files).map(f => processSingleFile(f)));
+
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
-                showNotification("Image data processed with AI.");
+                showNotification("تم الانتهاء من معالجة الصور!");
             };
 
             processTextBtn.addEventListener('click', async () => {
@@ -663,12 +710,6 @@
                 if (!text) return showNotification("Input is empty");
                 
                 const apiKey = geminiApiKeyInput ? geminiApiKeyInput.value.trim() : '';
-                if (!apiKey) {
-                    showNotification("Falling back to standard extraction (No API Key).");
-                    parseData(text);
-                    textInput.value = '';
-                    return;
-                }
 
                 const originalBtnText = processTextBtn.innerHTML;
                 processTextBtn.innerHTML = '⏳ Processing with AI...';
