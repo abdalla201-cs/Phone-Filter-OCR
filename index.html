@@ -643,7 +643,7 @@
                     const div = document.createElement('div');
                     div.className = 'contact-block';
                     div.innerHTML = `<div class="contact-name">${c.name}</div>`;
-                    c.details.forEach(d => div.innerHTML += `<div class="contact-detail">📧 ${d}</div>`);
+                    c.details.forEach(d => div.innerHTML += `<div class="contact-detail"> ${d}</div>`);
                     c.numbers.forEach(n => div.innerHTML += `<div class="contact-number">${formatCleaned(n)}</div>`);
                     
                     cleanedList.appendChild(div);
