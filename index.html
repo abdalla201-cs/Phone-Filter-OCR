@@ -1,49 +1,425 @@
-#!/bin/bash
-echo ""
-echo " =========================================="
-echo "  Phone Number Processor - Starting..."
-echo " =========================================="
-echo ""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phone Number Processor Pro</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📞</text></svg>">
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #0f0f13;
+            --bg-card: #1a1a22;
+            --bg-input: #222230;
+            --text-primary: #e8e8f0;
+            --text-secondary: #9090a8;
+            --accent: #5b8def;
+            --accent-hover: #4a7adf;
+            --border: #2e2e3e;
+            --success: #2ecc71;
+            --error: #e74c3c;
+            --warning: #f39c12;
+            --shadow: 0 4px 16px rgba(0,0,0,0.5);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-dark); color: var(--text-secondary); padding: 24px; min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+        header { text-align: center; padding: 10px 0 6px; }
+        header h1 { color: var(--text-primary); font-size: 1.9rem; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        header p { margin-top: 6px; opacity: 0.55; font-size: 0.9rem; }
+        .top-panel { display: grid; grid-template-columns: 1fr 1fr 260px; gap: 20px; }
+        @media (max-width: 1024px) { .top-panel { grid-template-columns: 1fr; } }
+        .card { background: var(--bg-card); border-radius: 14px; padding: 20px; border: 1px solid var(--border); box-shadow: var(--shadow); display: flex; flex-direction: column; }
+        .card h3 { color: var(--accent); font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        #api-key-input { width: 100%; padding: 12px; margin-bottom: 14px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-family: monospace; font-size: 0.88rem; transition: border-color 0.2s; outline: none; }
+        #api-key-input:focus { border-color: var(--accent); }
+        #drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 28px 16px; text-align: center; cursor: pointer; transition: all 0.2s; flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 130px; }
+        #drop-zone .drop-icon { font-size: 2.2rem; }
+        #drop-zone p { font-size: 0.88rem; line-height: 1.5; }
+        #drop-zone.drag-over, #drop-zone:hover { border-color: var(--accent); background: rgba(91,141,239,0.05); }
+        #file-input { display: none; }
+        .input-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+        #text-input { width: 100%; min-height: 170px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); padding: 12px; resize: vertical; font-family: monospace; font-size: 0.88rem; line-height: 1.5; transition: border-color 0.2s; }
+        #text-input:focus { outline: none; border-color: var(--accent); }
+        button { padding: 10px 16px; border-radius: 8px; border: none; background: var(--accent); color: #fff; font-weight: 600; font-size: 0.88rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        button:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
+        button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; }
+        button.secondary { background: var(--bg-input); border: 1px solid var(--border); color: var(--text-secondary); }
+        button.secondary:hover:not(:disabled) { background: var(--border); transform: translateY(-1px); }
+        #process-text-btn { margin-top: 12px; }
+        #clear-btn { background: var(--error); margin-top: 16px; }
+        #clear-btn:hover:not(:disabled) { background: #c0392b; }
+        .stats-grid { display: flex; flex-direction: column; gap: 10px; }
+        .stat-item { display: flex; justify-content: space-between; align-items: center; background: var(--bg-input); padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; }
+        .stat-item .val { font-weight: 700; color: var(--text-primary); font-size: 1.1rem; }
+        .progress-wrap { margin-top: 14px; display: none; }
+        .progress-track { background: var(--bg-input); border-radius: 8px; height: 6px; overflow: hidden; }
+        .progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent), #8b5cf6); border-radius: 8px; transition: width 0.3s ease; }
+        .progress-label { font-size: 0.78rem; color: var(--accent); margin-top: 6px; min-height: 16px; text-align: center; }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+        .result-content { font-family: 'Courier New', monospace; font-size: 0.88rem; background: var(--bg-input); padding: 14px; border-radius: 8px; min-height: 200px; max-height: 560px; overflow-y: auto; }
+        .copy-btn { margin-left: auto; padding: 4px 12px; font-size: 0.73rem; background: var(--border); color: var(--text-secondary); transform: none !important; }
+        .copy-btn:hover:not(:disabled) { background: var(--bg-input); transform: none !important; }
+        .contact-block { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+        .contact-block:last-child { border-bottom: none; margin-bottom: 0; }
+        .contact-name { font-weight: 700; color: #fff; font-size: 0.95rem; margin-bottom: 4px; letter-spacing: 0.03em; }
+        .contact-detail { color: var(--text-secondary); font-size: 0.8rem; margin: 2px 0 2px 4px; }
+        .contact-number { color: var(--accent); font-weight: 500; margin-top: 2px; }
+        #notif { position: fixed; top: -80px; left: 50%; transform: translateX(-50%); padding: 11px 22px; border-radius: 10px; font-weight: 600; font-size: 0.88rem; transition: top 0.4s cubic-bezier(0.34,1.56,0.64,1); z-index: 9999; box-shadow: 0 8px 24px rgba(0,0,0,0.4); white-space: nowrap; }
+        #notif.show { top: 20px; }
+        #notif.success { background: var(--success); color: #fff; }
+        #notif.error   { background: var(--error);   color: #fff; }
+        #notif.info    { background: var(--accent);   color: #fff; }
+        .err-banner { background: rgba(231,76,60,.1); border: 1px solid var(--error); border-radius: 8px; padding: 9px 13px; font-size: 0.82rem; color: #ff9090; margin-top: 10px; display: none; }
+        .ai-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(91,141,239,.15); color: var(--accent); border: 1px solid rgba(91,141,239,.3); border-radius: 20px; padding: 3px 10px; font-size: 0.75rem; font-weight: 600; margin-bottom: 14px; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>📞 Phone Number Processor Pro</h1>
+        <p>AI-powered extraction — Names, Emails, and Phone Numbers from images or text</p>
+    </header>
 
-PORT=8000
-FILE="phone-processor-gemini.html"
-URL="http://localhost:$PORT/$FILE"
+    <section class="top-panel">
+        <div class="card">
+            <h3>🖼️ Pro OCR Image Upload</h3>
+            <div class="ai-badge">✨ Powered by Gemini 1.5 Pro API</div>
+            <input type="password" id="api-key-input" placeholder="Enter Gemini API Key (Required)" title="Saved securely in your browser's local storage">
+            <div id="drop-zone">
+                <div class="drop-icon">🖼️</div>
+                <p><strong>Drag images here</strong> or click to browse</p>
+                <p style="opacity:.5;font-size:.78rem;">JPG · PNG · WEBP · Multiple files OK</p>
+                <input type="file" id="file-input" multiple accept="image/*">
+            </div>
+            <div class="input-buttons">
+                <button id="browse-btn" class="secondary">📁 Choose Files</button>
+                <button id="paste-btn"  class="secondary">📋 Paste Image</button>
+            </div>
+            <div class="progress-wrap" id="progress-wrap">
+                <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+                <div class="progress-label" id="progress-label"></div>
+            </div>
+            <div class="err-banner" id="err-banner"></div>
+        </div>
 
-open_browser() {
-    if command -v open &>/dev/null; then       # macOS
-        open "$URL"
-    elif command -v xdg-open &>/dev/null; then # Linux
-        xdg-open "$URL"
-    fi
-}
+        <div class="card">
+            <h3>✍️ Text Input</h3>
+            <textarea id="text-input" placeholder="Paste raw data here — names, addresses, phone numbers, emails..."></textarea>
+            <button id="process-text-btn">⚡ Extract with Gemini Pro</button>
+        </div>
 
-# Try Python 3
-if command -v python3 &>/dev/null; then
-    echo " [OK] Python3 found — server at $URL"
-    sleep 1 && open_browser &
-    python3 -m http.server $PORT
-    exit 0
-fi
+        <div class="card">
+            <h3>📊 Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat-item"><span>Total Instances</span> <span id="s-total"    class="val">0</span></div>
+                <div class="stat-item"><span>Unique Numbers</span>  <span id="s-unique"   class="val">0</span></div>
+                <div class="stat-item"><span>Contacts Found</span>  <span id="s-contacts" class="val">0</span></div>
+            </div>
+            <button id="clear-btn">🗑️ Clear Session</button>
+        </div>
+    </section>
 
-# Try Python 2
-if command -v python &>/dev/null; then
-    echo " [OK] Python found — server at $URL"
-    sleep 1 && open_browser &
-    python -m SimpleHTTPServer $PORT
-    exit 0
-fi
+    <section class="results-grid">
+        <div class="card">
+            <h3>📋 Results by Name <button class="copy-btn" data-target="list-names"    data-type="rich">Copy</button></h3>
+            <div class="result-content" id="list-names"></div>
+        </div>
+        <div class="card">
+            <h3>🇺🇸 American Format <button class="copy-btn" data-target="list-american" data-type="plain">Copy</button></h3>
+            <div class="result-content" id="list-american"></div>
+        </div>
+        <div class="card">
+            <h3>🔄 Duplicates Found <button class="copy-btn" data-target="list-dupes"    data-type="plain">Copy</button></h3>
+            <div class="result-content" id="list-dupes"></div>
+        </div>
+    </section>
+</div>
+<div id="notif"></div>
 
-# Try npx serve
-if command -v npx &>/dev/null; then
-    echo " [OK] Node.js found — server at http://localhost:3000/$FILE"
-    sleep 2 && open "http://localhost:3000/$FILE" &
-    npx serve -p 3000 .
-    exit 0
-fi
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const $ = id => document.getElementById(id);
 
-echo " [ERROR] Python or Node.js not found."
-echo ""
-echo " Install one of:"
-echo "   Python:  https://www.python.org/downloads/"
-echo "   Node.js: https://nodejs.org/"
-echo ""
+    /* ── State ── */
+    let contacts        = [];
+    let globalInstances = [];
+    let globalAssigned  = new Set();
+
+    /* ── Local Storage for API Key ── */
+    const apiKeyInput = $('api-key-input');
+    if (apiKeyInput) {
+        apiKeyInput.value = localStorage.getItem('geminiProApiKey') || '';
+        apiKeyInput.addEventListener('input', e => {
+            localStorage.setItem('geminiProApiKey', e.target.value.trim());
+        });
+    }
+
+    /* ── Helpers ── */
+    const esc    = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const phoneRx = /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g;
+    const cleanNum = r => { let c = String(r).replace(/[^\d]/g,''); if(c.length===11&&c[0]==='1')c=c.slice(1); return c.length===10?c:null; };
+    const fmtUS  = n => `(${n.slice(0,3)}) ${n.slice(3,6)}-${n.slice(6)}`;
+    const fmtAm  = n => `+1 ${fmtUS(n)}`;
+
+    /* ── Progress ── */
+    const setProgress = (pct, msg) => {
+        const wrap = $('progress-wrap');
+        if (pct === null) { wrap.style.display='none'; $('progress-fill').style.width='0%'; }
+        else { wrap.style.display='block'; $('progress-fill').style.width=pct+'%'; $('progress-label').textContent=msg||''; }
+    };
+    const showErr = msg => { const b=$('err-banner'); b.style.display='block'; b.textContent='⚠️ '+msg; setTimeout(()=>{b.style.display='none';},6000); };
+
+    /* ── Notification ── */
+    let nT;
+    const notify = (msg, type='success') => {
+        const el=$('notif'); el.textContent=msg; el.className=`show ${type}`;
+        clearTimeout(nT); nT=setTimeout(()=>{el.className='';},3000);
+    };
+
+    /* ══════════════════════════════════════════════════════
+       GEMINI API (1.5 PRO with auto-fallback to 1.5 FLASH)
+    ══════════════════════════════════════════════════════ */
+    const SYSTEM = `You are a highly precise contact-data extraction assistant.
+Extract ONLY: phone numbers, person/business names, and email addresses.
+
+CRITICAL RULES:
+1. Capture EVERY single phone number you see. Never skip any 10-digit sequence.
+2. Identify the real MAIN human or business name. If none is found, use "EXTRACTED DATA".
+3. DO NOT extract secondary names mentioned in notes (like "secretary's name is...").
+4. ABSOLUTELY IGNORE AND EXCLUDE addresses, street names, technical terms, timestamps, and descriptive notes (like "owns properties", "not selling", "hung up", "wrong number").
+5. Reply with ONLY a JSON object matching the requested format. No markdown, no text outside JSON.
+
+FORMAT:
+{"contacts":[{"name":"NAME","phones":["10digits"],"emails":["e@x.com"]}]}`;
+
+    async function callGeminiPro({ text=null, imageBase64=null, imageMimeType='image/jpeg' }) {
+        const apiKey = $('api-key-input').value.trim();
+        if (!apiKey) throw new Error("Please enter your Gemini API key.");
+
+        const parts = [];
+        if (imageBase64) {
+            parts.push({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
+            parts.push({ text: "Extract all contacts from this image. Return strictly JSON." });
+        }
+        if (text) {
+            parts.push({ text: `Extract all contacts from this text. Return strictly JSON.\n\n${text}` });
+        }
+
+        const payload = {
+            systemInstruction: { parts: [{ text: SYSTEM }] },
+            contents: [{ role: 'user', parts }],
+            generationConfig: {
+                temperature: 0.0,
+                responseMimeType: "application/json"
+            }
+        };
+
+        // Try Gemini 1.5 Pro first
+        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
+        let res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        // Auto Fallback to Flash if Pro is not available for this API Key
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            if (err.error?.message?.includes("not found") || err.error?.code === 404) {
+                console.warn("Gemini 1.5 Pro not found for this key. Falling back to Gemini 1.5 Flash...");
+                url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) {
+                    const fallbackErr = await res.json().catch(() => ({}));
+                    throw new Error(fallbackErr.error?.message || `HTTP ${res.status}`);
+                }
+            } else {
+                throw new Error(err.error?.message || `HTTP ${res.status}`);
+            }
+        }
+
+        const data = await res.json();
+        const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!raw) throw new Error('Empty response from API');
+
+        const clean = raw.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+        try { 
+            const parsed = JSON.parse(clean); 
+            return Array.isArray(parsed.contacts) ? parsed.contacts : [];
+        } catch { 
+            throw new Error('Failed to parse response as JSON'); 
+        }
+    }
+
+    /* ── Merge into state ── */
+    const mergeContacts = list => {
+        if (!Array.isArray(list)) return;
+        list.forEach(ac => {
+            if (!ac?.name) return;
+            const key = ac.name.trim().toUpperCase()==='UNKNOWN' ? 'EXTRACTED DATA' : ac.name.trim().toUpperCase();
+            let entry = contacts.find(c=>c.name===key);
+            if (!entry) { entry={name:key,details:[],numbers:[]}; contacts.push(entry); }
+            (ac.phones||[]).forEach(p=>{ const n=cleanNum(p); if(!n)return; globalInstances.push(n); if(!globalAssigned.has(n)&&!entry.numbers.includes(n)){entry.numbers.push(n);globalAssigned.add(n);} });
+            (ac.emails||[]).forEach(e=>{ if(e&&!entry.details.includes(e))entry.details.push(e); });
+        });
+        contacts = contacts.filter(c=>c.numbers.length>0||c.details.length>0);
+        renderUI();
+    };
+
+    /* ── Regex fallback ── */
+    const regexFallback = text => {
+        const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+        let cur=null; const tmp=[];
+        const getUnknown = ()=>{ let u=tmp.find(c=>c.name==='EXTRACTED DATA'); if(!u){u={name:'EXTRACTED DATA',details:[],numbers:[]};tmp.push(u);} return u; };
+        for (const line of lines) {
+            const phones=(line.match(phoneRx)||[]), emails=(line.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g)||[]);
+            if (!phones.length&&!emails.length) { const w=line.split(/\s+/); if(w.length>=2&&w.length<=6&&!/\d/.test(line)&&/[a-zA-Z]/.test(line)){cur={name:line.toUpperCase(),details:[],numbers:[]};tmp.push(cur);} continue; }
+            const t=cur||getUnknown();
+            phones.forEach(p=>{ const n=cleanNum(p); if(!n)return; globalInstances.push(n); if(!globalAssigned.has(n)&&!t.numbers.includes(n)){t.numbers.push(n);globalAssigned.add(n);} });
+            emails.forEach(e=>{ if(!t.details.includes(e))t.details.push(e); });
+        }
+        tmp.forEach(t=>{ if(!t.numbers.length&&!t.details.length)return; const ex=contacts.find(c=>c.name===t.name); if(ex){t.numbers.forEach(n=>{if(!ex.numbers.includes(n))ex.numbers.push(n);});t.details.forEach(d=>{if(!ex.details.includes(d))ex.details.push(d);});}else contacts.push(t); });
+        renderUI();
+    };
+
+    /* ── File → base64 ── */
+    const toB64 = f => new Promise((res,rej)=>{ const r=new FileReader(); r.readAsDataURL(f); r.onload=()=>res({base64:r.result.split(',')[1],mimeType:f.type||'image/jpeg'}); r.onerror=()=>rej(new Error('Read failed')); });
+
+    /* ── Handle images ── */
+    const handleFiles = async files => {
+        const arr = [...files].filter(f=>f.type.startsWith('image/'));
+        if (!arr.length) return notify('No image files found','error');
+        
+        const apiKey = $('api-key-input').value.trim();
+        if (!apiKey) {
+            $('api-key-input').focus();
+            return notify('Gemini API Key is required for Pro OCR', 'error');
+        }
+
+        for (let i=0;i<arr.length;i++) {
+            setProgress(Math.round(((i)/arr.length)*90)+5, `Processing ${i+1} of ${arr.length} with Gemini Pro...`);
+            try {
+                const {base64,mimeType} = await toB64(arr[i]);
+                const list = await callGeminiPro({imageBase64:base64,imageMimeType:mimeType});
+                list.length>0 ? mergeContacts(list) : notify(`No contacts in "${arr[i].name}"`,'info');
+            } catch(e) { 
+                console.error(e); 
+                showErr(`"${arr[i].name}": ${e.message}`); 
+                // Basic Fallback if Gemini completely fails
+                if (typeof Tesseract !== 'undefined') {
+                    notify('Falling back to basic OCR...','warning');
+                    try {
+                        const { data: { text } } = await Tesseract.recognize(arr[i], 'eng');
+                        regexFallback(text);
+                    } catch(err) {}
+                }
+            }
+            if (i<arr.length-1) await new Promise(r=>setTimeout(r,1500)); // Delay to avoid strict rate limits
+        }
+        setProgress(null); notify(`Done — ${arr.length} image(s) processed`,'success');
+    };
+
+    /* ── Text button ── */
+    $('process-text-btn').addEventListener('click', async () => {
+        const text = $('text-input').value.trim();
+        if (!text) return notify('Text input is empty','error');
+        
+        const apiKey = $('api-key-input').value.trim();
+        if (!apiKey) {
+            notify('API Key missing — using basic regex fallback','warning');
+            regexFallback(text);
+            $('text-input').value='';
+            return;
+        }
+
+        const btn=$('process-text-btn'); btn.disabled=true; btn.innerHTML='⏳ Processing...';
+        try { 
+            mergeContacts(await callGeminiPro({text})); 
+            notify('Done!','success'); 
+            $('text-input').value=''; 
+        }
+        catch(e) { 
+            notify(`AI error: ${e.message}`,'error'); 
+            regexFallback(text); 
+            $('text-input').value=''; 
+        }
+        finally { btn.disabled=false; btn.innerHTML='⚡ Extract with Gemini Pro'; }
+    });
+
+    /* ── Clear ── */
+    $('clear-btn').addEventListener('click',()=>{ contacts=[];globalInstances=[];globalAssigned.clear();$('text-input').value='';renderUI();notify('Cleared','info'); });
+
+    /* ── File triggers ── */
+    $('browse-btn').addEventListener('click',()=>$('file-input').click());
+    $('file-input').addEventListener('change',e=>{handleFiles(e.target.files);$('file-input').value='';});
+    const dz=$('drop-zone');
+    dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+    dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+    dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');handleFiles(e.dataTransfer.files);});
+    dz.addEventListener('click',()=>$('file-input').click());
+
+    /* ── Paste button ── */
+    $('paste-btn').addEventListener('click', async()=>{
+        try {
+            const items=await navigator.clipboard.read();
+            const blobs=[];
+            for(const item of items) for(const t of item.types) if(t.startsWith('image/')) blobs.push(new File([await item.getType(t)],'paste.png',{type:t}));
+            blobs.length ? handleFiles(blobs) : notify('No image in clipboard','error');
+        } catch { notify('Press Ctrl+V anywhere to paste an image','info'); }
+    });
+
+    /* ── Global Ctrl+V ── */
+    document.addEventListener('paste', e=>{
+        if(document.activeElement===$('text-input')) return;
+        const files=[...(e.clipboardData||e.originalEvent.clipboardData).items].filter(i=>i.type.startsWith('image/')).map(i=>i.getAsFile());
+        if(files.length) handleFiles(files);
+    });
+
+    /* ── Render ── */
+    const renderUI = () => {
+        const nL=$('list-names'), aL=$('list-american'), dL=$('list-dupes');
+        nL.innerHTML=aL.innerHTML=dL.innerHTML='';
+        const dc={};
+        globalInstances.forEach(n=>dc[n]=(dc[n]||0)+1);
+        contacts.forEach(c=>{
+            const d=document.createElement('div'); d.className='contact-block';
+            d.innerHTML=`<div class="contact-name">${esc(c.name)}</div>`;
+            c.details.forEach(x=>{d.innerHTML+=`<div class="contact-detail">✉️ ${esc(x)}</div>`;});
+            c.numbers.forEach(n=>{d.innerHTML+=`<div class="contact-number">${fmtUS(n)}</div>`;});
+            nL.appendChild(d);
+        });
+        [...globalAssigned].forEach(n=>{const el=document.createElement('div');el.textContent=fmtAm(n);aL.appendChild(el);});
+        Object.entries(dc).forEach(([n,c])=>{if(c<2)return;const el=document.createElement('div');el.textContent=`${fmtUS(n)} (${c}×)`;dL.appendChild(el);});
+        $('s-total').textContent=globalInstances.length;
+        $('s-unique').textContent=globalAssigned.size;
+        $('s-contacts').textContent=contacts.length;
+    };
+
+    /* ── Copy ── */
+    document.querySelectorAll('.copy-btn').forEach(btn=>{
+        btn.addEventListener('click',()=>{
+            const id=btn.dataset.target, type=btn.dataset.type;
+            if (type==='rich') {
+                const tmp=document.createElement('div'); tmp.style.cssText='font-family:Arial;color:black;';
+                contacts.forEach(c=>{ const b=document.createElement('b');b.textContent=c.name;tmp.appendChild(b);tmp.appendChild(document.createElement('br')); c.details.forEach(d=>{const el=document.createElement('div');el.textContent=d;tmp.appendChild(el);}); c.numbers.forEach(n=>{const el=document.createElement('div');el.textContent=fmtUS(n);tmp.appendChild(el);}); tmp.appendChild(document.createElement('br')); });
+                document.body.appendChild(tmp); const r=document.createRange(); r.selectNode(tmp); window.getSelection().removeAllRanges(); window.getSelection().addRange(r); document.execCommand('copy'); window.getSelection().removeAllRanges(); document.body.removeChild(tmp);
+                notify('Copied!','success');
+            } else if (id==='list-american') {
+                cpText([...globalAssigned].map(fmtAm).join('\n'));
+            } else { cpText($(id)?.innerText||''); }
+        });
+    });
+    const cpText = t => { if(!t.trim())return notify('Nothing to copy','error'); const el=Object.assign(document.createElement('textarea'),{value:t,style:'position:fixed;opacity:0'}); document.body.appendChild(el);el.select();document.execCommand('copy');document.body.removeChild(el); notify('Copied!','success'); };
+
+    renderUI();
+});
+</script>
+</body>
+</html>
