@@ -31,8 +31,6 @@
         @media (max-width: 1024px) { .top-panel { grid-template-columns: 1fr; } }
         .card { background: var(--bg-card); border-radius: 14px; padding: 20px; border: 1px solid var(--border); box-shadow: var(--shadow); display: flex; flex-direction: column; }
         .card h3 { color: var(--accent); font-size: 1rem; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-        #api-key-input { width: 100%; padding: 12px; margin-bottom: 14px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-family: monospace; font-size: 0.88rem; transition: border-color 0.2s; outline: none; }
-        #api-key-input:focus { border-color: var(--accent); }
         #drop-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 28px 16px; text-align: center; cursor: pointer; transition: all 0.2s; flex-grow: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 130px; }
         #drop-zone .drop-icon { font-size: 2.2rem; }
         #drop-zone p { font-size: 0.88rem; line-height: 1.5; }
@@ -85,9 +83,8 @@
 
     <section class="top-panel">
         <div class="card">
-            <h3>🖼️ Pro OCR Image Upload</h3>
-            <div class="ai-badge">✨ Powered by Gemini 1.5 Pro API</div>
-            <input type="password" id="api-key-input" placeholder="Enter Gemini API Key (Required)" title="Saved securely in your browser's local storage">
+            <h3>🖼️ Advanced OCR Image Upload</h3>
+            <div class="ai-badge">✨ Powered by Built-in Gemini AI</div>
             <div id="drop-zone">
                 <div class="drop-icon">🖼️</div>
                 <p><strong>Drag images here</strong> or click to browse</p>
@@ -108,7 +105,7 @@
         <div class="card">
             <h3>✍️ Text Input</h3>
             <textarea id="text-input" placeholder="Paste raw data here — names, addresses, phone numbers, emails..."></textarea>
-            <button id="process-text-btn">⚡ Extract with Gemini Pro</button>
+            <button id="process-text-btn">⚡ Extract with Built-in AI</button>
         </div>
 
         <div class="card">
@@ -148,15 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let globalInstances = [];
     let globalAssigned  = new Set();
 
-    /* ── Local Storage for API Key ── */
-    const apiKeyInput = $('api-key-input');
-    if (apiKeyInput) {
-        apiKeyInput.value = localStorage.getItem('geminiProApiKey') || '';
-        apiKeyInput.addEventListener('input', e => {
-            localStorage.setItem('geminiProApiKey', e.target.value.trim());
-        });
-    }
-
     /* ── Helpers ── */
     const esc    = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     const phoneRx = /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g;
@@ -167,9 +155,16 @@ document.addEventListener('DOMContentLoaded', () => {
     /* ── Progress ── */
     const setProgress = (pct, msg) => {
         const wrap = $('progress-wrap');
-        if (pct === null) { wrap.style.display='none'; $('progress-fill').style.width='0%'; }
-        else { wrap.style.display='block'; $('progress-fill').style.width=pct+'%'; $('progress-label').textContent=msg||''; }
+        if (pct === null && !msg) { 
+            wrap.style.display = 'none'; 
+            $('progress-fill').style.width = '0%'; 
+        } else { 
+            wrap.style.display = 'block'; 
+            if (pct !== null) $('progress-fill').style.width = pct + '%'; 
+            if (msg !== undefined) $('progress-label').textContent = msg; 
+        }
     };
+    
     const showErr = msg => { const b=$('err-banner'); b.style.display='block'; b.textContent='⚠️ '+msg; setTimeout(()=>{b.style.display='none';},6000); };
 
     /* ── Notification ── */
@@ -180,29 +175,32 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     /* ══════════════════════════════════════════════════════
-       GEMINI API (1.5 PRO with auto-fallback to 1.5 FLASH)
+       BUILT-IN GEMINI API (Seamless, Free, High Accuracy)
     ══════════════════════════════════════════════════════ */
-    const SYSTEM = `You are a highly precise contact-data extraction assistant.
+    const SYSTEM = `You are a highly precise contact-data extraction assistant with expert OCR vision.
 Extract ONLY: phone numbers, person/business names, and email addresses.
 
 CRITICAL RULES:
 1. Capture EVERY single phone number you see. Never skip any 10-digit sequence.
-2. Identify the real MAIN human or business name. If none is found, use "EXTRACTED DATA".
-3. DO NOT extract secondary names mentioned in notes (like "secretary's name is...").
-4. ABSOLUTELY IGNORE AND EXCLUDE addresses, street names, technical terms, timestamps, and descriptive notes (like "owns properties", "not selling", "hung up", "wrong number").
-5. Reply with ONLY a JSON object matching the requested format. No markdown, no text outside JSON.
+2. BE EXTREMELY CAREFUL WITH DIGITS. Look closely at the image to distinguish between 9 and 0, 8 and 6, 1 and 7. Double-check your extracted numbers against the image.
+3. Identify the real MAIN human or business name. If none is found, use "EXTRACTED DATA".
+4. ABSOLUTELY DO NOT treat section headers like "Phone Information", "Contact Info", or "Numbers" as names. Assign numbers under these headers to "EXTRACTED DATA".
+5. DO NOT extract secondary names mentioned in notes (like "secretary's name is...").
+6. ABSOLUTELY IGNORE AND EXCLUDE addresses, technical terms, timestamps (like EDT, EST, PST), and descriptive notes (like "owns properties", "not selling", "hung up").
+7. Reply with ONLY a JSON object matching the requested format. No markdown, no text outside JSON.
 
 FORMAT:
 {"contacts":[{"name":"NAME","phones":["10digits"],"emails":["e@x.com"]}]}`;
 
-    async function callGeminiPro({ text=null, imageBase64=null, imageMimeType='image/jpeg' }) {
-        const apiKey = $('api-key-input').value.trim();
-        if (!apiKey) throw new Error("Please enter your Gemini API key.");
+    async function extractWithBuiltInAI({ text=null, imageBase64=null, imageMimeType='image/jpeg' }) {
+        const apiKey = "";
+        const modelName = "gemini-2.5-flash-preview-09-2025";
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
         const parts = [];
         if (imageBase64) {
             parts.push({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
-            parts.push({ text: "Extract all contacts from this image. Return strictly JSON." });
+            parts.push({ text: "Extract all contacts from this image. Double check all phone digits carefully. Return strictly JSON." });
         }
         if (text) {
             parts.push({ text: `Extract all contacts from this text. Return strictly JSON.\n\n${text}` });
@@ -217,35 +215,49 @@ FORMAT:
             }
         };
 
-        // Try Gemini 1.5 Pro first
-        let url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`;
-        let res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        let maxRetries = 5;
+        let delayMs = 1500;
+        let data = null;
 
-        // Auto Fallback to Flash if Pro is not available for this API Key
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({}));
-            if (err.error?.message?.includes("not found") || err.error?.code === 404) {
-                console.warn("Gemini 1.5 Pro not found for this key. Falling back to Gemini 1.5 Flash...");
-                url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-                res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!res.ok) {
-                    const fallbackErr = await res.json().catch(() => ({}));
-                    throw new Error(fallbackErr.error?.message || `HTTP ${res.status}`);
-                }
-            } else {
-                throw new Error(err.error?.message || `HTTP ${res.status}`);
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            let res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                data = await res.json();
+                break;
             }
+
+            const errObj = await res.json().catch(() => ({}));
+            const errMsg = errObj.error?.message || `HTTP ${res.status}`;
+            const lowerErr = errMsg.toLowerCase();
+            const isRateLimit = res.status === 429 || lowerErr.includes("quota") || lowerErr.includes("rate");
+
+            if (isRateLimit && attempt < maxRetries) {
+                // Extract precise retry time from Google API message if present
+                let waitTime = delayMs;
+                const match = errMsg.match(/retry in (\d+(\.\d+)?)s/i);
+                if (match && match[1]) {
+                    waitTime = Math.ceil(parseFloat(match[1]) * 1000) + 1500; // Add 1.5s buffer
+                }
+                
+                const waitSecs = Math.round(waitTime / 1000);
+                console.warn(`Rate limit hit. Waiting ${waitSecs}s before retry...`);
+                setProgress(null, `⏳ Quota paused: Waiting ${waitSecs}s to cool down...`);
+                
+                await new Promise(r => setTimeout(r, waitTime));
+                delayMs = Math.min(delayMs * 2, 30000); // Increase default fallback delay exponentially
+                continue;
+            }
+
+            throw new Error(errMsg);
         }
 
-        const data = await res.json();
+        if (!data) throw new Error('Failed to get a successful response after retries.');
+
         const raw = data.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!raw) throw new Error('Empty response from API');
 
@@ -278,9 +290,22 @@ FORMAT:
         const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
         let cur=null; const tmp=[];
         const getUnknown = ()=>{ let u=tmp.find(c=>c.name==='EXTRACTED DATA'); if(!u){u={name:'EXTRACTED DATA',details:[],numbers:[]};tmp.push(u);} return u; };
+        
+        const badWords = ['PHONE', 'INFORMATION', 'CONTACT', 'DETAILS', 'EDT', 'EST', 'PST', 'OWNER', 'SECRETARY', 'NUMBER', 'NOTES'];
+        const isNameLine = (l) => {
+            const w = l.split(/\s+/);
+            if (w.length < 2 || w.length > 6 || /\d/.test(l) || !/[a-zA-Z]/.test(l)) return false;
+            const up = l.toUpperCase();
+            if (badWords.some(b => up.includes(b))) return false;
+            return true;
+        };
+
         for (const line of lines) {
             const phones=(line.match(phoneRx)||[]), emails=(line.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g)||[]);
-            if (!phones.length&&!emails.length) { const w=line.split(/\s+/); if(w.length>=2&&w.length<=6&&!/\d/.test(line)&&/[a-zA-Z]/.test(line)){cur={name:line.toUpperCase(),details:[],numbers:[]};tmp.push(cur);} continue; }
+            if (!phones.length&&!emails.length) { 
+                if(isNameLine(line)){cur={name:line.toUpperCase(),details:[],numbers:[]};tmp.push(cur);} 
+                continue; 
+            }
             const t=cur||getUnknown();
             phones.forEach(p=>{ const n=cleanNum(p); if(!n)return; globalInstances.push(n); if(!globalAssigned.has(n)&&!t.numbers.includes(n)){t.numbers.push(n);globalAssigned.add(n);} });
             emails.forEach(e=>{ if(!t.details.includes(e))t.details.push(e); });
@@ -296,18 +321,12 @@ FORMAT:
     const handleFiles = async files => {
         const arr = [...files].filter(f=>f.type.startsWith('image/'));
         if (!arr.length) return notify('No image files found','error');
-        
-        const apiKey = $('api-key-input').value.trim();
-        if (!apiKey) {
-            $('api-key-input').focus();
-            return notify('Gemini API Key is required for Pro OCR', 'error');
-        }
 
         for (let i=0;i<arr.length;i++) {
-            setProgress(Math.round(((i)/arr.length)*90)+5, `Processing ${i+1} of ${arr.length} with Gemini Pro...`);
+            setProgress(Math.round(((i)/arr.length)*90)+5, `Processing ${i+1} of ${arr.length} with Built-in AI...`);
             try {
                 const {base64,mimeType} = await toB64(arr[i]);
-                const list = await callGeminiPro({imageBase64:base64,imageMimeType:mimeType});
+                const list = await extractWithBuiltInAI({imageBase64:base64,imageMimeType:mimeType});
                 list.length>0 ? mergeContacts(list) : notify(`No contacts in "${arr[i].name}"`,'info');
             } catch(e) { 
                 console.error(e); 
@@ -321,27 +340,24 @@ FORMAT:
                     } catch(err) {}
                 }
             }
-            if (i<arr.length-1) await new Promise(r=>setTimeout(r,1500)); // Delay to avoid strict rate limits
+            // Smart Rate Limiting delay between normal requests (faster now)
+            if (i < arr.length - 1) {
+                setProgress(null, `Cooling down for 1.5s before next image...`);
+                await new Promise(r=>setTimeout(r, 1500)); 
+            }
         }
-        setProgress(null); notify(`Done — ${arr.length} image(s) processed`,'success');
+        setProgress(null, ""); 
+        notify(`Done — ${arr.length} image(s) processed`,'success');
     };
 
     /* ── Text button ── */
     $('process-text-btn').addEventListener('click', async () => {
         const text = $('text-input').value.trim();
         if (!text) return notify('Text input is empty','error');
-        
-        const apiKey = $('api-key-input').value.trim();
-        if (!apiKey) {
-            notify('API Key missing — using basic regex fallback','warning');
-            regexFallback(text);
-            $('text-input').value='';
-            return;
-        }
 
         const btn=$('process-text-btn'); btn.disabled=true; btn.innerHTML='⏳ Processing...';
         try { 
-            mergeContacts(await callGeminiPro({text})); 
+            mergeContacts(await extractWithBuiltInAI({text})); 
             notify('Done!','success'); 
             $('text-input').value=''; 
         }
@@ -350,7 +366,7 @@ FORMAT:
             regexFallback(text); 
             $('text-input').value=''; 
         }
-        finally { btn.disabled=false; btn.innerHTML='⚡ Extract with Gemini Pro'; }
+        finally { btn.disabled=false; btn.innerHTML='⚡ Extract with Built-in AI'; }
     });
 
     /* ── Clear ── */
