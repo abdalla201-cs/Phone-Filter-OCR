@@ -6,8 +6,6 @@
     <title>Phone Number Processor Pro</title>
     <!-- Site Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📞</text></svg>">
-    <!-- Tesseract.js for OCR -->
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
     <style>
         /* CSS Variables for Dark Theme */
         :root {
@@ -101,6 +99,9 @@
         <section class="top-panel">
             <div class="card">
                 <h3>🖼️ OCR Image Upload</h3>
+                <div style="margin-bottom: 15px;">
+                    <input type="password" id="gemini-api-key" placeholder="Enter Gemini API Key here..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background-color: var(--bg-dark); color: var(--text-primary); box-sizing: border-box;" title="Your key is saved securely in your browser's local storage.">
+                </div>
                 <div id="drop-zone">
                     <p>Drag images here or click to browse</p>
                     <input type="file" id="file-input" multiple accept="image/*">
@@ -160,6 +161,13 @@
             const progressBar = document.getElementById('progress-bar');
             const progressContainer = document.getElementById('progress-container');
             const notification = document.getElementById('notification');
+            const geminiApiKeyInput = document.getElementById('gemini-api-key');
+
+            // Load saved API key from localStorage
+            geminiApiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
+            geminiApiKeyInput.addEventListener('change', (e) => {
+                localStorage.setItem('geminiApiKey', e.target.value.trim());
+            });
 
             let contacts = []; 
             let globalInstances = []; 
@@ -191,48 +199,124 @@
             // Advanced Date/Time Scrubber (Handles OCR errors like (JUL 71 - FEB 2¢)
             const isDateOrTimeNoise = (str) => {
                 const lower = str.toLowerCase();
+                const months = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i;
                 const timezone = /\b(est|edt|cst|cdt|pst|pdt|mst|mdt)\b/i;
-                if (timezone.test(lower) && str.length < 20) return true;
-                
-                const monthsRegex = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/ig;
-                const matches = str.match(monthsRegex);
-                if (matches) {
-                    // If it contains 2 or more month names, it's definitely a date range
-                    if (matches.length >= 2 && str.length < 40) return true;
-                    // If it contains 1 month name and is a short string, it's a date
-                    if (matches.length === 1 && str.length < 20) return true;
-                }
-                return false;
+                const datePattern = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b\s*\d{1,4}/i;
+                const hasRange = /\d{2}\s*-\s*\w{3}/.test(lower);
+                return (datePattern.test(lower) && (hasRange || str.length < 30)) || timezone.test(lower);
             };
 
-            const preprocessImage = async (file) => {
-                return new Promise((resolve) => {
+            // Utility to convert File to Base64 for Gemini API
+            const fileToBase64 = (file) => {
+                return new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const img = new Image();
-                        img.onload = () => {
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            const scale = 3;
-                            canvas.width = img.width * scale;
-                            canvas.height = img.height * scale;
-                            ctx.imageSmoothingEnabled = true;
-                            ctx.imageSmoothingQuality = 'high';
-                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                            const data = imageData.data;
-                            for (let i = 0; i < data.length; i += 4) {
-                                const grey = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
-                                const val = grey < 190 ? 0 : 255;
-                                data[i] = data[i+1] = data[i+2] = val;
-                            }
-                            ctx.putImageData(imageData, 0, 0);
-                            resolve(canvas.toDataURL('image/png'));
-                        };
-                        img.src = e.target.result;
-                    };
                     reader.readAsDataURL(file);
+                    reader.onload = () => {
+                        let encoded = reader.result.toString().replace(/^data:(.*,)?/, '');
+                        if ((encoded.length % 4) > 0) {
+                            encoded += '='.repeat(4 - (encoded.length % 4));
+                        }
+                        resolve({ base64: encoded, mimeType: file.type });
+                    };
+                    reader.onerror = error => reject(error);
                 });
+            };
+
+            // Call Gemini API for Image/Text to Structured JSON
+            const extractStructuredDataWithGemini = async (apiKey, text = null, file = null) => {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+                const prompt = `You are an expert data extraction assistant. Extract contacts from the provided data.
+                Rules:
+                1. Identify real human names or business names. Ignore technical terms, dates, timestamps, and conversational noise.
+                2. Extract all phone numbers associated with each name.
+                3. Extract all emails associated with each name.
+                4. Extract any address details.
+                5. Output strictly as JSON. Return an empty array if no valid contacts are found.`;
+
+                const parts = [{ text: prompt }];
+                
+                if (text) {
+                    parts.push({ text: `\n\nData to process:\n${text}` });
+                }
+
+                if (file) {
+                    const { base64, mimeType } = await fileToBase64(file);
+                    parts.push({ inlineData: { mimeType: mimeType, data: base64 } });
+                }
+
+                const payload = {
+                    contents: [{ parts: parts }],
+                    generationConfig: {
+                        temperature: 0.1,
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "ARRAY",
+                            items: {
+                                type: "OBJECT",
+                                properties: {
+                                    name: { type: "STRING", description: "Person or business name" },
+                                    phones: { type: "ARRAY", items: { type: "STRING" } },
+                                    emails: { type: "ARRAY", items: { type: "STRING" } },
+                                    details: { type: "ARRAY", items: { type: "STRING" } }
+                                },
+                                required: ["name", "phones", "emails", "details"]
+                            }
+                        }
+                    }
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error?.message || "Failed to process data with Gemini API");
+                }
+
+                const result = await response.json();
+                const jsonText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!jsonText) return [];
+                return JSON.parse(jsonText);
+            };
+
+            const mergeContacts = (extractedContacts) => {
+                extractedContacts.forEach(apiContact => {
+                    if (!apiContact.name || apiContact.name.trim() === '') return;
+                    
+                    let currentEntry = contacts.find(c => c.name.toUpperCase() === apiContact.name.toUpperCase());
+                    if (!currentEntry) {
+                        currentEntry = { name: apiContact.name.toUpperCase(), details: [], numbers: [] };
+                        contacts.push(currentEntry);
+                    }
+                    
+                    (apiContact.phones || []).forEach(p => {
+                        const cleaned = cleanPhoneNumber(p);
+                        if (cleaned) {
+                            globalInstances.push(cleaned);
+                            if (!globalAssignedSet.has(cleaned)) {
+                                if (!currentEntry.numbers.includes(cleaned)) {
+                                    currentEntry.numbers.push(cleaned);
+                                    globalAssignedSet.add(cleaned);
+                                }
+                            }
+                        }
+                    });
+                    
+                    (apiContact.emails || []).forEach(e => {
+                        if (!currentEntry.details.includes(e)) currentEntry.details.push(e);
+                    });
+                    
+                    (apiContact.details || []).forEach(d => {
+                        if (!currentEntry.details.includes(d)) currentEntry.details.push(d);
+                    });
+                });
+                
+                contacts = contacts.filter(c => c.numbers.length > 0 || c.details.length > 0);
+                updateUI();
             };
 
             const extractEmails = (line) => {
@@ -240,7 +324,6 @@
                 return line.match(emailRegex) || [];
             };
 
-            // Phrased blacklist to prevent Scunthorpe problem (e.g., 'jacqueline' failing because of 'line')
             const techPhrases = [
                 'sources', 'phone type', 'household listing', 'bank account', 'motor vehicle', 
                 'warranty', 'experian', 'transunion', 'equifax', 'historic', 'current', 
@@ -250,24 +333,15 @@
                 'land line', 'cellular', 'neighbors', 'extracted data'
             ];
 
-            // Strict exact-word blockers for embedded names like "Record, Household"
-            const invalidNameParts = [
-                'record', 'records', 'listing', 'header', 'licenses', 'affiliations', 
-                'vehicle', 'warranty', 'bureau', 'source', 'sources', 'household', 
-                'experian', 'transunion', 'equifax'
+            const nameBlacklist = [
+                'record', 'records', 'listing', 'header', 'vehicle', 'warranty', 'bank', 'bureau', 
+                'source', 'sources', 'type', 'household', 'experian', 'transunion', 'equifax', 
+                'phone', 'associated', 'relatives', 'alias', 'licenses', 'professional', 
+                'work', 'affiliations', 'public', 'gateway', 'residence', 'business', 
+                'wireless', 'voip', 'land', 'line', 'cell', 'cellular', 'pastor', 'church', 
+                'contact', 'here\'s', 'service', 'renovation', 'extract', 'data', 'unknown',
+                'deceased', 'neighbors', 'email', 'address'
             ];
-
-            // Conversation blocker to delete sentences/notes
-            const isConversation = (str) => {
-                const lower = str.toLowerCase();
-                const words = [
-                    'said', 'told', 'called', 'spoke', 'ask', 'know', 'selling', 'interested', 
-                    'offer', 'document', 'grandma', 'wife', 'husband', 'daughter', 'son', 
-                    'tenant', 'owner', 'texted', 'voicemail', 'wrong', 'disconnected', 
-                    'busy', 'repeat', 'speaker', 'message'
-                ];
-                return words.some(w => new RegExp('\\b' + w + '\\b').test(lower));
-            };
 
             const findEmbeddedName = (line) => {
                 const nameRegex = /\b([A-Z][a-z]+|[A-Z]+),\s+([A-Z][a-z]+|[A-Z]+)(?:\s+[A-Z]\.?)?\b/g;
@@ -284,8 +358,8 @@
                     if (stateCodes.has(secondPart.toUpperCase())) continue;
                     if (addressWords.includes(match[1])) continue;
 
-                    // Reject explicitly invalid parts to stop "Record, Household"
-                    if (invalidNameParts.includes(firstPart) || invalidNameParts.includes(secondPart)) continue;
+                    const lowerName = potentialName.toLowerCase();
+                    if (nameBlacklist.some(bad => lowerName.includes(bad))) continue;
 
                     return potentialName; 
                 }
@@ -295,14 +369,15 @@
             const isTechnicalGarbage = (str) => {
                 if (isDateOrTimeNoise(str)) return true;
                 const lower = str.toLowerCase();
-                return techPhrases.some(p => lower.includes(p));
+                return techPhrases.some(p => lower.includes(p)) || nameBlacklist.some(w => lower.includes(w));
             };
 
             const isDetailLine = (line, isStrict = false) => {
                 if (line.includes('@')) return true;
                 if (isStrict) return false;
                 if (isTechnicalGarbage(line)) return false;
-                if (isConversation(line)) return false;
+                // Conversation check replaced here with simple condition
+                if (/(said|told|called|spoke|texted|doesnt)/i.test(line)) return false;
                 if (/\d{3}-\d{4}/.test(line) || /\(\d{3}\)/.test(line)) return false;
                 
                 const hasDigits = /\d/.test(line);
@@ -313,11 +388,11 @@
             const isValidNameLine = (line, isImageMode) => {
                 if (line.includes('@')) return false;
                 if (isTechnicalGarbage(line)) return false;
-                if (isConversation(line)) return false;
+                if (/(said|told|called|spoke|texted|doesnt)/i.test(line)) return false;
                 
                 const potentialName = cleanName(line);
                 
-                // MUST contain at least one letter (blocks '---' and random symbols)
+                // Crucial: Must contain letters (blocks '---', numbers only, etc.)
                 if (!/[a-zA-Z]/.test(potentialName)) return false;
 
                 const hasDigits = /\d/.test(potentialName);
@@ -337,6 +412,8 @@
                 if (potentialName.split(/\s+/).length > 8 || potentialName.length < 2) return false;
                 if (isImageMode && !potentialName.includes(' ')) return false;
 
+                if (nameBlacklist.some(bad => lowerLine.includes(bad))) return false;
+
                 return true;
             };
 
@@ -347,9 +424,9 @@
                 let currentEntry = null;
 
                 const getUnknownEntry = () => {
-                    let entry = tempContacts.find(c => c.name === "Extracted Data");
+                    let entry = tempContacts.find(c => c.name === "EXTRACTED DATA");
                     if (!entry) {
-                        entry = { name: "Extracted Data", details: [], numbers: [] };
+                        entry = { name: "EXTRACTED DATA", details: [], numbers: [] };
                         tempContacts.push(entry);
                     }
                     return entry;
@@ -365,8 +442,12 @@
                     const rawPhones = extractNumbersFromLine(line);
                     const emails = extractEmails(line);
 
-                    // Skip lines that are purely noise dates/time
-                    if (rawPhones.length === 0 && emails.length === 0 && isDateOrTimeNoise(line)) continue;
+                    // Skip pure noise
+                    if (rawPhones.length === 0 && emails.length === 0) {
+                        if (isDateOrTimeNoise(line)) continue;
+                        if (/(said|told|called|spoke|texted|doesnt)/i.test(line)) continue;
+                        if (!/[a-zA-Z0-9]/.test(line)) continue; // completely skip lines with only symbols like "---"
+                    }
 
                     // 1. Embedded Name Found
                     const embeddedName = findEmbeddedName(line);
@@ -400,7 +481,7 @@
                         const firstPhoneIdx = line.search(phoneRegex);
                         if (firstPhoneIdx > addrEnd) {
                             const extracted = cleanName(line.substring(addrEnd, firstPhoneIdx));
-                            if (extracted.length > 2 && !isTechnicalGarbage(extracted) && !isConversation(extracted)) {
+                            if (extracted.length > 2 && !isTechnicalGarbage(extracted) && !/(said|told|called|spoke|texted|doesnt)/i.test(extracted)) {
                                 sandwichedName = extracted;
                                 sandwichAddress = line.substring(0, addrEnd).trim();
                             }
@@ -541,26 +622,60 @@
 
             const handleFiles = async (files) => {
                 if (!files.length) return;
+                
+                const apiKey = geminiApiKeyInput.value.trim();
+                if (!apiKey) {
+                    showNotification("Please enter your Gemini API Key first!");
+                    geminiApiKeyInput.focus();
+                    return;
+                }
+
                 progressContainer.style.display = 'block';
+                progressBar.style.width = '50%'; // Indeterminate style since API doesn't give live progress
+
                 for (const f of files) {
                     try {
-                        const processedDataUrl = await preprocessImage(f);
-                        const { data: { text } } = await Tesseract.recognize(processedDataUrl, 'eng', {
-                            logger: m => { if (m.status === 'recognizing text') progressBar.style.width = (m.progress * 100) + '%'; }
-                        });
-                        parseData(text);
-                    } catch (e) { showNotification("OCR Error on " + f.name); }
+                        const extractedContacts = await extractStructuredDataWithGemini(apiKey, null, f);
+                        mergeContacts(extractedContacts);
+                    } catch (e) { 
+                        console.error(e);
+                        showNotification("Gemini Error: " + e.message); 
+                    }
                 }
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
-                showNotification("Image data processed with high precision.");
+                showNotification("Image data processed with Gemini AI.");
             };
 
-            processTextBtn.addEventListener('click', () => {
+            processTextBtn.addEventListener('click', async () => {
                 const text = textInput.value.trim();
                 if (!text) return showNotification("Input is empty");
-                parseData(text);
-                textInput.value = ''; 
+                
+                const apiKey = geminiApiKeyInput.value.trim();
+                
+                if (apiKey) {
+                    const originalBtnText = processTextBtn.innerHTML;
+                    processTextBtn.innerHTML = '⏳ Processing with AI...';
+                    processTextBtn.disabled = true;
+                    
+                    try {
+                        const extractedContacts = await extractStructuredDataWithGemini(apiKey, text, null);
+                        mergeContacts(extractedContacts);
+                        showNotification("AI Extraction Complete!");
+                        textInput.value = ''; 
+                    } catch (e) {
+                        console.error(e);
+                        showNotification("AI Error: Falling back to standard extraction.");
+                        parseData(text);
+                        textInput.value = '';
+                    } finally {
+                        processTextBtn.innerHTML = originalBtnText;
+                        processTextBtn.disabled = false;
+                    }
+                } else {
+                    parseData(text);
+                    textInput.value = ''; 
+                }
             });
 
             clearSessionBtn.addEventListener('click', () => {
