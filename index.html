@@ -519,11 +519,11 @@
                     const result = lookupResultsMap.get(number);
                     let colorStyle = '';
                     if (result === 'yes') {
-                        colorStyle = 'style="color: #4ade80 !important;"';
+                        colorStyle = 'style="color: #ef4444 !important;"';
                     } else if (result === 'no') {
                         colorStyle = 'style="color: #ef4444 !important;"';
                     } else {
-                        colorStyle = 'style="color: #ff3333 !important;"';
+                        colorStyle = 'style="color: #ef4444 !important;"';
                     }
                     html += `<div ${colorStyle}>${formatPhoneNumber(number)}</div>`;
                 });
