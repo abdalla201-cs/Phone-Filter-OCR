@@ -291,10 +291,11 @@ FORMAT:
         let cur=null; const tmp=[];
         const getUnknown = ()=>{ let u=tmp.find(c=>c.name==='EXTRACTED DATA'); if(!u){u={name:'EXTRACTED DATA',details:[],numbers:[]};tmp.push(u);} return u; };
         
-        const badWords = ['PHONE', 'INFORMATION', 'CONTACT', 'DETAILS', 'EDT', 'EST', 'PST', 'OWNER', 'SECRETARY', 'NUMBER', 'NOTES'];
+        // Extended bad words to ensure "PHONE INFORMATION" is completely blocked
+        const badWords = ['PHONE', 'INFORMATION', 'CONTACT', 'DETAILS', 'EDT', 'EST', 'PST', 'OWNER', 'SECRETARY', 'NUMBER', 'NOTES', 'EXTRACTED'];
         const isNameLine = (l) => {
             const w = l.split(/\s+/);
-            if (w.length < 2 || w.length > 6 || /\d/.test(l) || !/[a-zA-Z]/.test(l)) return false;
+            if (w.length < 1 || w.length > 6 || /\d/.test(l) || !/[a-zA-Z]/.test(l)) return false;
             const up = l.toUpperCase();
             if (badWords.some(b => up.includes(b))) return false;
             return true;
@@ -340,7 +341,7 @@ FORMAT:
                     } catch(err) {}
                 }
             }
-            // Smart Rate Limiting delay between normal requests (faster now)
+            // Smart Rate Limiting delay between normal requests
             if (i < arr.length - 1) {
                 setProgress(null, `Cooling down for 1.5s before next image...`);
                 await new Promise(r=>setTimeout(r, 1500)); 
