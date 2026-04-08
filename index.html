@@ -505,7 +505,6 @@
                 const addr = extractAddressFromLine(line);
                 const numbers = extractPhoneNumbers(line);
 
-                // اكتشاف أرقام الملاحظات لمنعها (DNC)
                 if (numbers.length > 0) {
                     let textToAnalyze = line;
                     if (addr) textToAnalyze = textToAnalyze.replace(addr, '');
@@ -519,7 +518,6 @@
                     }
                 }
 
-                // التحقق من الاسم باستخدام الفلتر الذكي
                 if (nameMatch && !cleanedLine.match(/\d/) && cleanedLine.length > 3 && !line.includes('@')) {
                     const potentialName = nameMatch[1].trim();
                     
@@ -785,30 +783,30 @@
 
             let html = '';
             nameToDataMap.forEach(({ numbers, emails, addresses }, name) => {
-                html += '<div class="contact-group">';
-                html += '<div class="contact-name">' + name + '</div>';
+                html += '<div class="contact-group" style="margin-bottom: 15px;">';
+                html += `<div class="contact-name" style="margin: 0px !important; padding: 0px !important;">${name}</div>`;
 
                 addresses.forEach(addr => {
-                    html += `<div style="color: #fbbf24 !important; font-size: 0.85rem; margin-bottom: 2px;">📍 ${addr}</div>`;
+                    html += `<div style="margin: 0px !important; padding: 0px !important; line-height: 1.3 !important;"><span style="color: #fbbf24 !important; font-size: 0.85rem;">📍 ${addr}</span></div>`;
                 });
 
                 emails.forEach(email => {
-                    html += `<div style="color: #93c5fd !important; font-size: 0.85rem; margin-bottom: 2px;">${email}</div>`;
+                    html += `<div style="margin: 0px !important; padding: 0px !important; line-height: 1.3 !important;"><span style="color: #93c5fd !important; font-size: 0.85rem;">${email}</span></div>`;
                 });
 
-                html += '<div class="contact-numbers" style="margin-top: 6px;">';
+                html += '<div class="contact-numbers" style="margin-top: 4px;">';
 
                 numbers.forEach(number => {
                     const result = lookupResultsMap.get(number);
-                    let colorStyle = '';
+                    let colorCode = '#ffffff'; 
                     if (result === 'yes') {
-                        colorStyle = 'style="color: #4ade80 !important;"'; 
+                        colorCode = '#4ade80'; 
                     } else if (result === 'no') {
-                        colorStyle = 'style="color: #ff3b30 !important;"'; 
-                    } else {
-                        colorStyle = 'style="color: #ffffff !important;"'; 
+                        colorCode = '#ff3b30'; 
                     }
-                    html += `<div ${colorStyle}>${formatPhoneNumber(number)}</div>`;
+                    
+                    // 👉 هنا التعديل السحري: إضافة خصائص إجبارية تمنع المسافات تماماً عند تحديد الماوس
+                    html += `<div style="margin: 0px !important; padding: 1px 0px !important; line-height: 1.3 !important;"><span style="color: ${colorCode} !important;">${formatPhoneNumber(number)}</span></div>`;
                 });
 
                 html += '</div></div>';
@@ -828,11 +826,10 @@
                 return;
             }
 
-            let html = '<div class="number-list" style="line-height: 1.6;">';
-            uniqueNumbersArray.forEach((number, index) => {
-                // استخدام span هنا أيضاً
-                html += `<span>+1 ${formatPhoneNumber(number)}</span>`;
-                if (index < uniqueNumbersArray.length - 1) html += '<br>';
+            let html = '<div class="number-list">';
+            uniqueNumbersArray.forEach(number => {
+                // التنسيق الصارم هنا أيضاً
+                html += `<div style="margin: 0px !important; padding: 1px 0px !important; line-height: 1.3 !important;">+1 ${formatPhoneNumber(number)}</div>`;
             });
             html += '</div>';
 
@@ -861,9 +858,10 @@
 
             let html = '<div class="number-list">';
             duplicates.forEach(([number, count]) => {
-                html += '<div class="duplicate-item">';
-                html += '<span>' + formatPhoneNumber(number) + '</span>';
-                html += '<span class="duplicate-count">' + count + ' times</span>';
+                // التنسيق الصارم مع الحفاظ على توزيع العناصر
+                html += `<div class="duplicate-item" style="margin: 0px !important; padding: 1px 0px !important; line-height: 1.3 !important; display: flex; justify-content: space-between;">`;
+                html += `<span>${formatPhoneNumber(number)}</span>`;
+                html += `<span class="duplicate-count">${count} times</span>`;
                 html += '</div>';
             });
             html += '</div>';
@@ -954,7 +952,7 @@
         }
 
         function copyToClipboard(elementId) {
-            let cleanHtml = '<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.8;">';
+            let cleanHtml = '<div style="font-family: Arial, sans-serif; font-size: 14px;">';
             let plainText = '';
 
             if (elementId === 'cleanedNumbers') {
@@ -970,16 +968,16 @@
                 });
 
                 nameToDataMap.forEach(({ numbers, emails, addresses }, name) => {
-                    +  cleanHtml += `<div><font color="#3b82f6"><b>${name}</b></font></div>`;
+                    cleanHtml += `<div style="margin: 0px; padding: 0px; line-height: 1.3;"><span style="color:#3b82f6; font-weight:bold;">${name}</span></div>`;
                     plainText += name + '\n';
 
                     addresses.forEach(addr => {
-                        +  cleanHtml += `<div><font color="#fbbf24">${addr}</font></div>`;
+                        cleanHtml += `<div style="margin: 0px; padding: 0px; line-height: 1.3;"><span style="color:#fbbf24;">📍 ${addr}</span></div>`;
                         plainText += addr + '\n';
                     });
 
                     emails.forEach(email => {
-                        cleanHtml += `<div><span style="color:#60a5fa;">${email}</span></div>`;
+                        cleanHtml += `<div style="margin: 0px; padding: 0px; line-height: 1.3;"><span style="color:#60a5fa;">${email}</span></div>`;
                         plainText += email + '\n';
                     });
 
@@ -993,8 +991,8 @@
                             colorCode = '#ff3b30'; 
                         }
                         
-                        // ✅ تم إزالة Bold من هنا بشكل نهائي
-                        +  cleanHtml += `<div><font color="${colorCode}">${formatted}</font></div>`;
+                        // تطبيق الإلغاء الإجباري للمسافات هنا أيضاً
+                        cleanHtml += `<div style="margin: 0px; padding: 0px; line-height: 1.3;"><span style="color:${colorCode};">${formatted}</span></div>`;
                         plainText += formatted + '\n';
                     });
 
