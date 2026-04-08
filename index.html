@@ -13,10 +13,10 @@
             --bg-card: #1e1e1e;
             --bg-input: #27272a;
             --border-color: #3f3f46;
-            --accent-blue: #3b82f6;
-            --accent-blue-hover: #2563eb;
-            --accent-red: #ef4444;
-            --accent-red-hover: #dc2626;
+            --accent-blue: #33ccff;
+            --accent-blue-hover: #00ace6;
+            --accent-red: #ff0000;
+            --accent-red-hover: #cc0000;
             --text-main: #e4e4e7;
             --text-muted: #a1a1aa;
         }
@@ -109,7 +109,7 @@
 
         .btn-primary {
             background-color: var(--accent-blue);
-            color: #fff;
+            color: #121212;
             padding: 12px 20px;
             width: 100%;
             margin-top: auto;
@@ -159,7 +159,7 @@
             min-height: 120px;
             margin-bottom: 15px;
         }
-        .upload-area:hover, .upload-area.dragover { border-color: var(--accent-blue); background-color: rgba(59, 130, 246, 0.05); }
+        .upload-area:hover, .upload-area.dragover { border-color: var(--accent-blue); background-color: rgba(51, 204, 255, 0.05); }
         
         .file-input { display: none; }
 
@@ -210,7 +210,8 @@
             height: 380px;
             overflow-y: auto;
             font-family: 'Courier New', Courier, monospace;
-            font-size: 0.85rem;
+            font-size: 0.95rem;
+            line-height: 1.5;
         }
 
         .result-content::-webkit-scrollbar { width: 6px; }
@@ -341,7 +342,8 @@
 
     <script>
         // --- 🛡️ SECURITY PROTECTIONS (Domain Lock & Anti-Inspect) ---
-        const allowedDomains = ["abdalla201-cs.github.io", "localhost", "127.0.0.1", ""];
+        // ⚠️ تحديث الرابط الجديد الخاص بـ Netlify
+        const allowedDomains = ["ph-2-crd.netlify.app", "localhost", "127.0.0.1", ""];
         
         if (!allowedDomains.includes(window.location.hostname) && window.location.hostname !== "") {
             document.body.innerHTML = "<div style='display:flex; justify-content:center; align-items:center; height:100vh; background:#121212; color:#ef4444; font-family:sans-serif;'><h2>🚫 Unauthorized Access. This tool is domain-locked.</h2></div>";
@@ -425,7 +427,6 @@
             return addr;
         }
 
-        // --- 🛡️ دالة الفلتر الذكي للأسماء (قاموس ضخم للملاحظات) ---
         function isValidContactName(name) {
             const lowerName = name.toLowerCase().trim();
             
@@ -761,6 +762,7 @@
             document.getElementById('lookupCount').textContent = lookupResultsMap.size;
         }
 
+        // 👉 محرك إيفرنوت للعرض 
         function updateCleanedNumbers() {
             const container = document.getElementById('cleanedNumbers');
             
@@ -783,33 +785,30 @@
 
             let html = '';
             nameToDataMap.forEach(({ numbers, emails, addresses }, name) => {
-                html += '<div class="contact-group" style="margin-bottom: 15px;">';
-                html += `<div class="contact-name" style="margin: 0px !important; padding: 0px !important;">${name}</div>`;
+                html += '<div class="contact-group" style="margin-bottom: 20px;">';
+                
+                html += `<div draggable="false"><span style="color: rgb(51, 204, 255); font-weight: bold; text-transform: uppercase; --inversion-type-color: simple;">${name}</span></div>`;
 
                 addresses.forEach(addr => {
-                    html += `<div style="margin: 0px !important; padding: 0px !important; line-height: 1.3 !important;"><span style="color: #fbbf24 !important; font-size: 0.85rem;">📍 ${addr}</span></div>`;
+                    html += `<div draggable="false"><span style="color: rgb(255, 255, 0); --inversion-type-color: simple;">📍 ${addr}</span></div>`;
                 });
 
                 emails.forEach(email => {
-                    html += `<div style="margin: 0px !important; padding: 0px !important; line-height: 1.3 !important;"><span style="color: #93c5fd !important; font-size: 0.85rem;">${email}</span></div>`;
+                    html += `<div draggable="false"><a href="mailto:${email}" style="color: rgb(51, 204, 255); text-decoration: none; --inversion-type-color: simple;">${email}</a></div>`;
                 });
 
-                html += '<div class="contact-numbers" style="margin-top: 4px;">';
-
-                numbers.forEach(number => {
+                numbers.forEach((number) => {
                     const result = lookupResultsMap.get(number);
-                    let colorCode = '#ffffff'; 
+                    let colorCode = 'rgb(255, 255, 255)'; 
                     if (result === 'yes') {
-                        colorCode = '#4ade80'; 
+                        colorCode = 'rgb(24, 168, 65)'; // Exact Evernote Green
                     } else if (result === 'no') {
-                        colorCode = '#ff3b30'; 
+                        colorCode = 'rgb(252, 18, 51)'; // Exact Evernote Red
                     }
-                    
-                    // 👉 هنا التعديل السحري: إضافة خصائص إجبارية تمنع المسافات تماماً عند تحديد الماوس
-                    html += `<div style="margin: 0px !important; padding: 1px 0px !important; line-height: 1.3 !important;"><span style="color: ${colorCode} !important;">${formatPhoneNumber(number)}</span></div>`;
+                    html += `<div draggable="false"><span style="color: ${colorCode}; --inversion-type-color: simple;">${formatPhoneNumber(number)}</span></div>`;
                 });
 
-                html += '</div></div>';
+                html += '</div>';
             });
 
             container.innerHTML = html;
@@ -826,10 +825,9 @@
                 return;
             }
 
-            let html = '<div class="number-list">';
-            uniqueNumbersArray.forEach(number => {
-                // التنسيق الصارم هنا أيضاً
-                html += `<div style="margin: 0px !important; padding: 1px 0px !important; line-height: 1.3 !important;">+1 ${formatPhoneNumber(number)}</div>`;
+            let html = '<div class="number-list" style="margin-bottom: 20px;">';
+            uniqueNumbersArray.forEach((number) => {
+                html += `<div draggable="false"><span>+1 ${formatPhoneNumber(number)}</span></div>`;
             });
             html += '</div>';
 
@@ -856,13 +854,9 @@
                 return;
             }
 
-            let html = '<div class="number-list">';
+            let html = '<div class="number-list" style="margin-bottom: 20px;">';
             duplicates.forEach(([number, count]) => {
-                // التنسيق الصارم مع الحفاظ على توزيع العناصر
-                html += `<div class="duplicate-item" style="margin: 0px !important; padding: 1px 0px !important; line-height: 1.3 !important; display: flex; justify-content: space-between;">`;
-                html += `<span>${formatPhoneNumber(number)}</span>`;
-                html += `<span class="duplicate-count">${count} times</span>`;
-                html += '</div>';
+                html += `<div draggable="false"><span style="display: inline-block; width: 150px;">${formatPhoneNumber(number)}</span><span style="color: var(--text-muted); font-size: 0.85rem;">${count} times</span></div>`;
             });
             html += '</div>';
 
@@ -951,8 +945,9 @@
             document.body.removeChild(textArea);
         }
 
+        // 👉 محرك حقن إيفرنوت النهائي (Ultimate Evernote Injection)
         function copyToClipboard(elementId) {
-            let cleanHtml = '<div style="font-family: Arial, sans-serif; font-size: 14px;">';
+            let cleanHtml = '<html><body><!--StartFragment-->';
             let plainText = '';
 
             if (elementId === 'cleanedNumbers') {
@@ -967,81 +962,90 @@
                     [...new Set(contact.addresses || [])].forEach(a => { if (!entry.addresses.includes(a)) entry.addresses.push(a); });
                 });
 
+                let isFirst = true;
+
                 nameToDataMap.forEach(({ numbers, emails, addresses }, name) => {
-                    cleanHtml += `<div style="margin: 0px; padding: 0px; line-height: 1.3;"><span style="color:#3b82f6; font-weight:bold;">${name}</span></div>`;
+                    let dataPm = isFirst ? 'data-pm-slice="1 1 []" data-en-clipboard="true"' : '';
+                    isFirst = false;
+
+                    cleanHtml += `<div draggable="false" ${dataPm}><span style="color: rgb(51, 204, 255); font-weight: bold; text-transform: uppercase; --inversion-type-color: simple;">${name}</span></div>\n`;
                     plainText += name + '\n';
 
                     addresses.forEach(addr => {
-                        cleanHtml += `<div style="margin: 0px; padding: 0px; line-height: 1.3;"><span style="color:#fbbf24;">📍 ${addr}</span></div>`;
+                        cleanHtml += `<div draggable="false"><span style="color: rgb(255, 255, 0); --inversion-type-color: simple;">📍 ${addr}</span></div>\n`;
                         plainText += addr + '\n';
                     });
 
                     emails.forEach(email => {
-                        cleanHtml += `<div style="margin: 0px; padding: 0px; line-height: 1.3;"><span style="color:#60a5fa;">${email}</span></div>`;
+                        cleanHtml += `<div draggable="false"><span style="color: rgb(51, 204, 255); text-decoration: none; --inversion-type-color: simple;">${email}</span></div>\n`;
                         plainText += email + '\n';
                     });
 
-                    numbers.forEach(number => {
+                    numbers.forEach((number) => {
                         const formatted = formatPhoneNumber(number);
                         const result = lookupResultsMap.get(number);
-                        let colorCode = '#ffffff'; 
+                        let colorCode = 'rgb(255, 255, 255)'; 
                         if (result === 'yes') {
-                            colorCode = '#4ade80'; 
+                            colorCode = 'rgb(24, 168, 65)'; // Exact Evernote Green
                         } else if (result === 'no') {
-                            colorCode = '#ff3b30'; 
+                            colorCode = 'rgb(252, 18, 51)'; // Exact Evernote Red
                         }
                         
-                        // تطبيق الإلغاء الإجباري للمسافات هنا أيضاً
-                        cleanHtml += `<div style="margin: 0px; padding: 0px; line-height: 1.3;"><span style="color:${colorCode};">${formatted}</span></div>`;
+                        cleanHtml += `<div draggable="false"><span style="color: ${colorCode}; --inversion-type-color: simple;">${formatted}</span></div>\n`;
                         plainText += formatted + '\n';
                     });
 
-                    cleanHtml += '<div><br></div>';
+                    cleanHtml += '<div draggable="false"><br></div>\n';
                     plainText += '\n';
                 });
 
             } else {
                 const element = document.getElementById(elementId);
                 plainText = element.innerText;
-                cleanHtml += `<p style="white-space:pre; text-decoration:none;">${plainText}</p>`;
+                const lines = plainText.split('\n');
+                lines.forEach((line, index) => {
+                    let dataPm = index === 0 ? 'data-pm-slice="1 1 []" data-en-clipboard="true"' : '';
+                    cleanHtml += `<div draggable="false" ${dataPm}><span style="--inversion-type-color: simple;">${line}</span></div>\n`;
+                });
             }
 
-            cleanHtml += '</div>';
+            cleanHtml += '<!--EndFragment--></body></html>';
 
-            const container = document.createElement('div');
-            container.innerHTML = cleanHtml;
-            container.style.position = 'fixed';
-            container.style.left = '-9999px';
-            document.body.appendChild(container);
+            // ⚠️ التحديد الوهمي الإجباري لضمان تفعيل حدث النسخ في المتصفح ⚠️
+            const dummyDiv = document.createElement('div');
+            dummyDiv.textContent = 'dummy text for copy';
+            dummyDiv.style.position = 'absolute';
+            dummyDiv.style.left = '-9999px';
+            document.body.appendChild(dummyDiv);
 
             const selection = window.getSelection();
             const range = document.createRange();
-            range.selectNodeContents(container);
+            range.selectNodeContents(dummyDiv);
             selection.removeAllRanges();
             selection.addRange(range);
 
-            try {
-                document.execCommand('copy');
-                showNotification('Copied to clipboard!', 'success');
-            } catch (err) {
-                const textArea = document.createElement("textarea");
-                textArea.value = plainText;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-9999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    showNotification('Copied text.', 'success');
-                } catch (e) {
-                    showNotification('حدث خطأ أثناء النسخ', 'error');
-                }
-                document.body.removeChild(textArea);
-            }
+            const copyListener = function(e) {
+                e.preventDefault();
+                e.clipboardData.setData('text/html', cleanHtml);
+                e.clipboardData.setData('text/plain', plainText);
+            };
 
-            selection.removeAllRanges();
-            document.body.removeChild(container);
+            document.addEventListener('copy', copyListener);
+            
+            try {
+                const successful = document.execCommand('copy');
+                if(successful) {
+                    showNotification('Copied perfectly for Evernote!', 'success');
+                } else {
+                    showNotification('Copy failed by browser', 'error');
+                }
+            } catch (err) {
+                showNotification('Copy Error!', 'error');
+            } finally {
+                document.removeEventListener('copy', copyListener);
+                selection.removeAllRanges();
+                document.body.removeChild(dummyDiv);
+            }
         }
 
         function showNotification(message, type) {
@@ -1224,7 +1228,7 @@
                 const lowerErr = errMsg.toLowerCase();
 
                 if (res.status === 404 || lowerErr.includes("not found")) {
-                    throw new Error(`الموديل (${modelEndpoint}) غير مدعوم لمفتاحك. يرجى اختيار موديل آخر من القائمة.`);
+                    throw new Error(`الموديل (${modelEndpoint}) غير مدعوم لم مفتاحك. يرجى اختيار موديل آخر من القائمة.`);
                 }
 
                 if ((res.status === 429 || lowerErr.includes("quota")) && attempt < 4) {
