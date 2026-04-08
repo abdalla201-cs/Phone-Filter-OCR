@@ -970,11 +970,11 @@
                 });
 
                 nameToDataMap.forEach(({ numbers, emails, addresses }, name) => {
-                    cleanHtml += `<div><span style="color:#3b82f6; font-weight:bold;">${name}</span></div>`;
+                    +  cleanHtml += `<div><font color="#3b82f6"><b>${name}</b></font></div>`;
                     plainText += name + '\n';
 
                     addresses.forEach(addr => {
-                        cleanHtml += `<div><span style="color:#fbbf24;">📍 ${addr}</span></div>`;
+                        +  cleanHtml += `<div><font color="#fbbf24">${addr}</font></div>`;
                         plainText += addr + '\n';
                     });
 
@@ -994,7 +994,7 @@
                         }
                         
                         // ✅ تم إزالة Bold من هنا بشكل نهائي
-                        cleanHtml += `<div><span style="color:${colorCode};">${formatted}</span></div>`;
+                        +  cleanHtml += `<div><font color="${colorCode}">${formatted}</font></div>`;
                         plainText += formatted + '\n';
                     });
 
