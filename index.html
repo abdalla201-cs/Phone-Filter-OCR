@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phone Number Processor - Dashboard</title>
+    <!-- Tesseract.js for OCR -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+    <!-- SheetJS for Excel/CSV processing -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    
     <style>
         :root {
             --bg-main: #121212;
@@ -132,16 +133,6 @@
         }
         .btn-secondary:hover { background-color: #333333; border-color: #555; }
 
-        .btn-whatsapp {
-            background-color: #10b981;
-            color: #fff;
-            padding: 12px 15px;
-            width: 100%;
-            margin-bottom: 10px;
-            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.2);
-        }
-        .btn-whatsapp:hover { background-color: #059669; transform: translateY(-2px); }
-
         .copy-btn {
             background-color: #333333;
             color: var(--text-main);
@@ -254,9 +245,11 @@
         
         <div class="top-panel">
             
+            <!-- Column 1: OCR Upload -->
             <div class="card">
                 <h3><span>🖼️ OCR Image Upload</span></h3>
                 
+                <!-- AI Setup Block -->
                 <div style="margin-bottom:15px; background:rgba(0,0,0,0.2); border-radius:8px; padding:15px; border:1px solid rgba(255,255,255,0.05);">
                     <h4 style="font-size:0.85rem; color:var(--accent-blue); margin-bottom:10px;">⚙️ AI Model Settings</h4>
                     
@@ -294,34 +287,32 @@
                 </div>
             </div>
 
+            <!-- Column 2: Text Input -->
             <div class="card">
                 <h3><span>✍️ Text Input</span></h3>
                 <textarea class="textarea" id="textInput" placeholder="Paste data containing names, addresses, emails..."></textarea>
                 <button class="btn-primary" onclick="processText()">⚡ Filter & Extract Data</button>
             </div>
 
+            <!-- Column 3: Statistics & Lookup -->
             <div class="card">
-                <h3><span>📊 Stats & Auto Checker</span></h3>
-                <div class="stats-list" style="margin-bottom: 10px;">
+                <h3><span>📊 Statistics</span></h3>
+                <div class="stats-list">
                     <div class="stat-item"><span>Total Instances:</span> <span class="val" id="totalCount">0</span></div>
                     <div class="stat-item"><span>Unique Numbers:</span> <span class="val" id="uniqueCount">0</span></div>
                     <div class="stat-item"><span>Lookup Entries:</span> <span class="val" id="lookupCount">0</span></div>
                 </div>
                 
-                <div style="margin-top: 5px; margin-bottom: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
-                    <button class="btn-secondary" onclick="copyForWaChecker()" style="width: 100%; margin-bottom: 10px;">📋 Copy for WA Extension</button>
-                    
-                    <input type="file" id="lookupFileInput" class="file-input" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
-                    <div class="upload-area" id="lookupUploadArea" style="min-height: 50px; padding: 10px; margin-bottom: 0;" onclick="document.getElementById('lookupFileInput').click()">
-                        <p style="font-size: 0.8rem; color: var(--text-muted);">📂 Drop WA Checker Excel</p>
-                    </div>
-                </div>
+                <!-- Hidden input for Lookup CSV -->
+                <input type="file" id="lookupFileInput" class="file-input" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+                <button class="btn-secondary" onclick="document.getElementById('lookupFileInput').click()" style="margin-bottom: 12px; width: 100%;">🔍 Load Lookup (CSV/Excel)</button>
 
                 <button class="btn-danger" onclick="clearSession()">🗑️ Clear Session</button>
             </div>
 
         </div>
 
+        <!-- Bottom Row: 3 Columns Results -->
         <div class="results-grid">
             <div class="card">
                 <h3><span>📋 Results (by Name)</span> <button class="copy-btn" onclick="copyToClipboard('cleanedNumbers')">Copy</button></h3>
@@ -339,9 +330,10 @@
             </div>
         </div>
 
+        <!-- Debug Panel -->
         <div id="debugPanel" style="display:none; margin-top:20px; background:var(--bg-input); padding:20px; border-radius:10px; border:1px solid var(--border-color);">
             <h3 style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; font-size: 0.95rem;">
-                🐛 API Status / Raw Output
+                🐛 OCR Raw Output
                 <button class="copy-btn" onclick="document.getElementById('debugPanel').style.display='none'">Hide</button>
             </h3>
             <textarea id="debugOutput" style="width:100%; height:150px; background:var(--bg-main); color:#10b981; font-family:monospace; font-size:0.8rem; border:1px solid var(--border-color); border-radius:8px; padding:10px; resize:vertical;" readonly></textarea>
@@ -350,29 +342,10 @@
     </div>
 
     <script>
-        // --- 🛡️ SECURITY PROTECTIONS (Domain Lock & Anti-Inspect) ---
-        // ⚠️ هام: ضع رابط موقعك على جيتهاب هنا بدلاً من "yourusername.github.io"
-        const allowedDomains = ["yourusername.github.io", "localhost", "127.0.0.1", ""];
-        
-        if (!allowedDomains.includes(window.location.hostname) && window.location.hostname !== "") {
-            document.body.innerHTML = "<div style='display:flex; justify-content:center; align-items:center; height:100vh; background:#121212; color:#ef4444; font-family:sans-serif;'><h2>🚫 Unauthorized Access. This tool is domain-locked.</h2></div>";
-            throw new Error("Unauthorized Domain"); 
-        }
-
-        document.addEventListener('contextmenu', event => event.preventDefault());
-        document.onkeydown = function(e) {
-            if (e.keyCode == 123) return false; 
-            if (e.ctrlKey && e.shiftKey && (e.keyCode == 'I'.charCodeAt(0) || e.keyCode == 'C'.charCodeAt(0) || e.keyCode == 'J'.charCodeAt(0))) return false;
-            if (e.ctrlKey && e.keyCode == 'U'.charCodeAt(0)) return false; 
-        };
-        // -------------------------------------------------------------
-
         let allNumbers = [];
         let contacts = [];
         let lookupResultsMap = new Map();
         let crossContactDuplicates = new Map();
-
-        // ──────────────────────────────────────────
 
         function deduplicateContactsGlobally() {
             const globalSeen = new Set();
@@ -535,6 +508,7 @@
                     html += `<div style="color: #fbbf24 !important; font-size: 0.85rem; margin-bottom: 2px;">📍 ${addr}</div>`;
                 });
 
+                // Emails under names, no emojis
                 emails.forEach(email => {
                     html += `<div style="color: #93c5fd !important; font-size: 0.85rem; margin-bottom: 2px;">${email}</div>`;
                 });
@@ -545,12 +519,11 @@
                     const result = lookupResultsMap.get(number);
                     let colorStyle = '';
                     if (result === 'yes') {
-                        colorStyle = 'style="color: #4ade80 !important;"'; 
+                        colorStyle = 'style="color: #30D158 !important;"';
                     } else if (result === 'no') {
-                        // استخدام الأحمر الصريح مع زيادة السماكة لجعله يبدو أغمق
-                        colorStyle = 'style="color: #FF0000 !important; font-weight: 900;"'; 
+                        colorStyle = 'style="color: #FF453A !important;"';
                     } else {
-                        colorStyle = 'style="color: #ffffff !important;"'; 
+                        colorStyle = 'style="color: #FF8A65 !important;"';
                     }
                     html += `<div ${colorStyle}>${formatPhoneNumber(number)}</div>`;
                 });
@@ -665,36 +638,6 @@
             showNotification('Session cleared completely!', 'success');
         }
 
-        function copyForWaChecker() {
-            const allUniqueNumbers = new Set();
-            contacts.forEach(c => c.numbers.forEach(n => allUniqueNumbers.add(n)));
-            const uniqueNumbersArray = Array.from(allUniqueNumbers);
-            
-            if (uniqueNumbersArray.length === 0) {
-                showNotification('لا توجد أرقام للنسخ', 'error');
-                return;
-            }
-
-            let plainText = uniqueNumbersArray.map(number => {
-                return `+1 ${formatPhoneNumber(number)}`;
-            }).join('\n');
-
-            const textArea = document.createElement("textarea");
-            textArea.value = plainText;
-            textArea.style.position = "fixed";
-            textArea.style.left = "-9999px";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            try {
-                document.execCommand('copy');
-                showNotification('تم نسخ الأرقام بنجاح.', 'success');
-            } catch (err) {
-                showNotification('حدث خطأ أثناء النسخ', 'error');
-            }
-            document.body.removeChild(textArea);
-        }
-
         function copyToClipboard(elementId) {
             let cleanHtml = '<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.8;">';
             let plainText = '';
@@ -720,6 +663,7 @@
                         plainText += addr + '\n';
                     });
 
+                    // Emails under names in Copy output (no emojis)
                     emails.forEach(email => {
                         cleanHtml += `<div><span style="color:#60a5fa;">${email}</span></div>`;
                         plainText += email + '\n';
@@ -728,16 +672,14 @@
                     numbers.forEach(number => {
                         const formatted = formatPhoneNumber(number);
                         const result = lookupResultsMap.get(number);
-                        let colorCode = '#ffffff'; 
+                        let color = '#FFFFFF';
                         if (result === 'yes') {
-                            colorCode = '#4ade80'; 
+                            cleanHtml += `<div><font color="#10b981">${formatted}</font></div>`;
                         } else if (result === 'no') {
-                            // العودة للون الأحمر الذي نجح في تجاوز الفلتر
-                            colorCode = '#FF0000'; 
+                            cleanHtml += `<div><font color="#ef4444">${formatted}</font></div>`;
+                        } else {
+                            cleanHtml += `<div><span>${formatted}</span></div>`;
                         }
-                        
-                        // إضافة التغليف المزدوج مع أقصى سماكة للخط (900)
-                        cleanHtml += `<div><font color="${colorCode}"><span style="color:${colorCode}; font-weight:900;">${formatted}</span></font></div>`;
                         plainText += formatted + '\n';
                     });
 
@@ -753,40 +695,25 @@
 
             cleanHtml += '</div>';
 
-            const container = document.createElement('div');
-            container.innerHTML = cleanHtml;
-            container.style.position = 'fixed';
-            container.style.left = '-9999px';
-            document.body.appendChild(container);
+            if (navigator.clipboard && window.ClipboardItem) {
+                const blob = new Blob([cleanHtml], { type: 'text/html' });
+                const item = new ClipboardItem({
+                    'text/plain': new Blob([plainText], { type: 'text/plain' }),
+                    'text/html': blob
+                });
 
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(container);
-            selection.removeAllRanges();
-            selection.addRange(range);
-
-            try {
-                document.execCommand('copy');
-                showNotification('Copied to clipboard!', 'success');
-            } catch (err) {
-                const textArea = document.createElement("textarea");
-                textArea.value = plainText;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-9999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                try {
-                    document.execCommand('copy');
+                navigator.clipboard.write([item]).then(() => {
+                    showNotification('Copied to clipboard!', 'success');
+                }).catch(err => {
+                    navigator.clipboard.writeText(plainText).then(() => {
+                        showNotification('Copied text.', 'success');
+                    });
+                });
+            } else {
+                navigator.clipboard.writeText(plainText).then(() => {
                     showNotification('Copied text.', 'success');
-                } catch (e) {
-                    showNotification('حدث خطأ أثناء النسخ', 'error');
-                }
-                document.body.removeChild(textArea);
+                });
             }
-
-            selection.removeAllRanges();
-            document.body.removeChild(container);
         }
 
         function showNotification(message, type) {
@@ -841,6 +768,7 @@
             }
         });
 
+        // ── Settings & Model Selection ──
         function saveGeminiKey(val) {
             val = val.trim();
             if (val) {
@@ -875,6 +803,7 @@
             return model;
         }
 
+        // ── Test API Key & List Models ──
         async function testApiKey() {
             const apiKey = document.getElementById('geminiApiKey').value.trim();
             if (!apiKey) {
@@ -891,6 +820,7 @@
                 }
                 const data = await response.json();
                 
+                // تصفية الموديلات التي تدعم توليد المحتوى (قراءة الصور والنصوص)
                 const validModels = data.models
                     .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
                     .map(m => `✅ ${m.name.replace('models/', '')} \n   (${m.displayName})`);
@@ -912,6 +842,7 @@
             }
         }
 
+        // ── Armored Gemini Vision OCR (Model Aware) ──
         async function ocrWithGemini(file) {
             const apiKeyInput = document.getElementById('geminiApiKey').value.trim();
             const selectedModel = document.getElementById('aiModelSelect').value;
@@ -950,7 +881,7 @@
             };
 
             let currentUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelEndpoint}:generateContent?key=${apiKey}`;
-            let delayMs = 4000;
+            let delayMs = 3000;
 
             for (let attempt = 0; attempt <= 4; attempt++) {
                 const res = await fetch(currentUrl, { 
@@ -968,22 +899,12 @@
                 const errMsg = errObj.error?.message || `HTTP ${res.status}`;
                 const lowerErr = errMsg.toLowerCase();
 
+                // If Model is not found, throw error directly to let user change it
                 if (res.status === 404 || lowerErr.includes("not found")) {
                     throw new Error(`الموديل (${modelEndpoint}) غير مدعوم لمفتاحك. يرجى اختيار موديل آخر من القائمة.`);
                 }
 
                 if ((res.status === 429 || lowerErr.includes("quota")) && attempt < 4) {
-                    if (modelEndpoint.includes('pro')) {
-                        const progressText = document.getElementById('progressText');
-                        if (progressText) {
-                            progressText.textContent = `🚀 Pro model rate limit hit. Switching to Flash automatically...`;
-                        }
-                        modelEndpoint = "gemini-1.5-flash";
-                        currentUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelEndpoint}:generateContent?key=${apiKey}`;
-                        attempt--; 
-                        continue;
-                    }
-
                     let wait = delayMs;
                     const match = errMsg.match(/retry in (\d+(\.\d+)?)s/i);
                     if (match && match[1]) wait = Math.ceil(parseFloat(match[1]) * 1000) + 1500;
@@ -1092,8 +1013,7 @@
                     }
                     
                     if (i < files.length - 1 && geminiKey) {
-                        progressText.textContent = `⏳ Cooling down (4s) to prevent API limits...`;
-                        await new Promise(r => setTimeout(r, 4000));
+                        await new Promise(r => setTimeout(r, 1000));
                     }
                 }
 
@@ -1178,19 +1098,7 @@
         const lookupFileInput = document.getElementById('lookupFileInput');
         const lookupUploadArea = document.getElementById('lookupUploadArea');
 
-        lookupUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); lookupUploadArea.classList.add('dragover'); });
-        lookupUploadArea.addEventListener('dragleave', () => { lookupUploadArea.classList.remove('dragover'); });
-        lookupUploadArea.addEventListener('drop', (e) => { 
-            e.preventDefault(); 
-            lookupUploadArea.classList.remove('dragover'); 
-            const files = Array.from(e.dataTransfer.files); 
-            if (files.length > 0) handleLookupFile(files[0]); 
-        });
-
-        lookupFileInput.addEventListener('change', (e) => { 
-            const files = Array.from(e.target.files); 
-            if (files.length > 0) handleLookupFile(files[0]); 
-        });
+        lookupFileInput.addEventListener('change', (e) => { const files = Array.from(e.target.files); if (files.length > 0) handleLookupFile(files[0]); });
 
         function handleLookupFile(file) {
             const reader = new FileReader();
@@ -1205,30 +1113,13 @@
                     if (json.length < 2) return showNotification('Lookup file is empty.', 'error');
 
                     const headers = json[0].map(h => String(h).trim());
-                    
-                    let phoneIndex = -1;
-                    let existIndex = -1;
-
-                    headers.forEach((h, i) => {
-                        const cleanHeader = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-                        if (['phonenumber', 'phone', 'number', 'whatsappnumber', 'wanumber'].includes(cleanHeader)) {
-                            phoneIndex = i;
-                        }
-                        if (['exist', 'whatsapp', 'status', 'iswhatsapp', 'haswhatsapp', 'result'].includes(cleanHeader)) {
-                            existIndex = i;
-                        }
-                    });
-
-                    if (phoneIndex === -1 || existIndex === -1) {
-                        return showNotification('لم أتمكن من العثور على أعمدة تحتوي على الأرقام وحالة الواتساب.', 'error');
-                    }
-
                     const dataRows = json.slice(1);
-                    const processedData = dataRows.map(row => ({ 
-                        phoneNumber: row[phoneIndex], 
-                        exist: row[existIndex] 
-                    }));
+                    const phoneIndex = headers.findIndex(h => h.toLowerCase() === 'phonenumber');
+                    const existIndex = headers.findIndex(h => h.toLowerCase() === 'exist');
 
+                    if (phoneIndex === -1 || existIndex === -1) return showNotification('Requires "phoneNumber" and "exist" columns.', 'error');
+
+                    const processedData = dataRows.map(row => ({ phoneNumber: row[phoneIndex], exist: row[existIndex] }));
                     processLookupData(processedData);
                 } catch (error) {
                     showNotification('Failed to process lookup file.', 'error');
@@ -1246,15 +1137,10 @@
                     let cleanedNumber = String(row.phoneNumber).replace(/[^\d]/g, '');
                     if (cleanedNumber.length >= 10) {
                         if (cleanedNumber.length > 10) cleanedNumber = cleanedNumber.slice(-10);
-                        
                         const existStatus = String(row.exist).toLowerCase().trim();
-                        let finalStatus = null;
-                        
-                        if (['1', 'yes', 'true', 'valid', 'active', 'found'].includes(existStatus)) {
-                            finalStatus = 'yes';
-                        } else if (['0', 'no', 'false', 'invalid', 'inactive', 'notfound', 'not found'].includes(existStatus)) {
-                            finalStatus = 'no';
-                        }
+                        let finalStatus = existStatus;
+                        if (existStatus === '1') finalStatus = 'yes';
+                        if (existStatus === '0') finalStatus = 'no';
 
                         if (finalStatus === 'yes' || finalStatus === 'no') {
                             lookupResultsMap.set(cleanedNumber, finalStatus);
@@ -1267,7 +1153,7 @@
             updateStats();
             updateCleanedNumbers();
 
-            if (loadedCount > 0) showNotification(`Loaded ${loadedCount} lookup entries successfully!`, 'success');
+            if (loadedCount > 0) showNotification(`Loaded ${loadedCount} lookup entries!`, 'success');
             else showNotification('No valid lookup entries found.', 'error');
         }
 
